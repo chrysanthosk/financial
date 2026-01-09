@@ -83,6 +83,7 @@ if [[ ! -f "$APP_DIR/.env" ]]; then
 fi
 
 # Safety : Fail early if composer.lock is missing (prevents accidental “install without lock”)
+
 if [[ ! -f "$APP_DIR/composer.lock" ]]; then
   err "composer.lock missing. Refusing to deploy without a lockfile."
   exit 1
