@@ -161,14 +161,12 @@ if run_as_app "cd '$APP_DIR' && ${PHP_BIN} -r \"require 'vendor/autoload.php'; \
   fi
 fi
 
-# B) Seed Income sources only if table empty (safe)
-if run_as_app "cd '$APP_DIR' && ${PHP_BIN} -r \"require 'vendor/autoload.php'; \$app=require 'bootstrap/app.php'; \$app->make(Illuminate\\\\Contracts\\\\Console\\\\Kernel::class)->bootstrap(); echo class_exists(App\\\\Models\\\\IncomeSource::class) ? App\\\\Models\\\\IncomeSource::count() : 0;\" | grep -q '^0$'"; then
-  if run_as_app "cd '$APP_DIR' && ${PHP_BIN} -r \"require 'vendor/autoload.php'; \$app=require 'bootstrap/app.php'; \$app->make(Illuminate\\\\Contracts\\\\Console\\\\Kernel::class)->bootstrap(); echo class_exists(Database\\\\Seeders\\\\IncomeSourceSeeder::class) ? 1 : 0;\" | grep -q '^1$'"; then
-    log "No income sources found — running IncomeSourceSeeder ..."
-    artisan "db:seed --class=Database\\Seeders\\IncomeSourceSeeder --force"
-  else
-    warn "IncomeSourceSeeder not present. Skipping."
-  fi
+# B) Ensure default Income Sources always exist (safe / idempotent)
+if run_as_app "cd '$APP_DIR' && ${PHP_BIN} -r \"require 'vendor/autoload.php'; \$app=require 'bootstrap/app.php'; \$app->make(Illuminate\\\\Contracts\\\\Console\\\\Kernel::class)->bootstrap(); echo class_exists(Database\\\\Seeders\\\\IncomeSourceSeeder::class) ? 1 : 0;\" | grep -q '^1$'"; then
+  log "Ensuring income sources exist — running IncomeSourceSeeder (idempotent) ..."
+  artisan "db:seed --class='Database\\Seeders\\IncomeSourceSeeder' --force"
+else
+  warn "IncomeSourceSeeder not present. Skipping."
 fi
 
 # 6) optimize:clear && config:cache (and route cache)

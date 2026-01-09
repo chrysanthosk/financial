@@ -22,7 +22,7 @@ return new class extends Migration
     public function down(): void
     {
         Schema::table('incomes', function (Blueprint $table) {
-            //
+            $table->dropUnique('incomes_date_source_unique');
         });
     }
 };
