@@ -23,6 +23,7 @@
             color: rgba(0,0,0,.75);
             vertical-align: middle;
         }
+
         /* When your theme toggler applies dark mode, AdminLTE commonly uses .dark-mode on body */
         body.dark-mode .badge-soon{
             border-color: rgba(255,255,255,.18);
@@ -30,7 +31,7 @@
             color: rgba(255,255,255,.85);
         }
 
-        /* Make dropdown items readable in dark mode (if your theme toggler switches dropdown styling) */
+        /* Make dropdown items readable in dark mode */
         body.dark-mode .dropdown-menu{
             background-color: #2b2b2b;
             border-color: rgba(255,255,255,.10);
@@ -49,6 +50,16 @@
         }
     </style>
 </head>
+
+@php
+    // Compute these once so we can safely show/hide menu items without empty dropdowns.
+    $isAdmin = auth()->check() && (auth()->user()->role ?? null) === 'admin';
+
+    $hasSmtp = \Illuminate\Support\Facades\Route::has('admin.settings.smtp.edit');
+    $hasAudit = \Illuminate\Support\Facades\Route::has('admin.audit.index');
+
+    $showSettingsDropdown = $isAdmin && ($hasSmtp || $hasAudit);
+@endphp
 
 <body class="hold-transition layout-top-nav">
 <div class="wrapper">
@@ -101,7 +112,7 @@
                         </a>
                     </li>
 
-                    @if(auth()->check() && (auth()->user()->role ?? null) === 'admin')
+                    @if($isAdmin)
                         <li class="nav-item">
                             <a href="{{ route('admin.users.index') }}"
                                class="nav-link {{ request()->routeIs('admin.users.*') ? 'active' : '' }}">
@@ -110,39 +121,40 @@
                         </li>
 
                         {{-- Settings dropdown (Admin only) --}}
-                        <li class="nav-item dropdown">
-                            <a class="nav-link dropdown-toggle {{ request()->routeIs('admin.settings.*') || request()->routeIs('admin.audit.*') ? 'active' : '' }}"
-                               href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-                                <i class="fas fa-cogs me-1"></i> Settings
-                            </a>
+                        @if($showSettingsDropdown)
+                            <li class="nav-item dropdown">
+                                <a class="nav-link dropdown-toggle {{ request()->routeIs('admin.settings.*') || request()->routeIs('admin.audit.*') ? 'active' : '' }}"
+                                   href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                    <i class="fas fa-cogs me-1"></i> Settings
+                                </a>
 
-                            <ul class="dropdown-menu">
-                                @if(\Illuminate\Support\Facades\Route::has('admin.settings.smtp.edit'))
+                                <ul class="dropdown-menu">
+                                    @if($hasSmtp)
+                                        <li>
+                                            <a href="{{ route('admin.settings.smtp.edit') }}" class="dropdown-item">
+                                                <i class="fas fa-envelope me-2"></i> SMTP
+                                            </a>
+                                        </li>
+                                    @endif
+
+                                    @if($hasAudit)
+                                        <li>
+                                            <a href="{{ route('admin.audit.index') }}" class="dropdown-item">
+                                                <i class="fas fa-clipboard-list me-2"></i> Audit Log
+                                            </a>
+                                        </li>
+                                    @endif
+
+                                    <li><hr class="dropdown-divider"></li>
+
                                     <li>
-                                        <a href="{{ route('admin.settings.smtp.edit') }}" class="dropdown-item">
-                                            <i class="fas fa-envelope me-2"></i> SMTP
-                                        </a>
+                                        <span class="dropdown-item-text text-muted small">
+                                            More settings coming soon
+                                        </span>
                                     </li>
-                                @endif
-
-                                {{-- Option A: Audit Log under Settings --}}
-                                @if(\Illuminate\Support\Facades\Route::has('admin.audit.index'))
-                                    <li>
-                                        <a href="{{ route('admin.audit.index') }}" class="dropdown-item">
-                                            <i class="fas fa-clipboard-list me-2"></i> Audit Log
-                                        </a>
-                                    </li>
-                                @endif
-
-                                <li><hr class="dropdown-divider"></li>
-
-                                <li>
-                                    <span class="dropdown-item-text text-muted small">
-                                        More settings coming soon
-                                    </span>
-                                </li>
-                            </ul>
-                        </li>
+                                </ul>
+                            </li>
+                        @endif
                     @endif
 
                 </ul>
