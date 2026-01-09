@@ -40,12 +40,6 @@ artisan() {
   run_as_app "cd '$APP_DIR' && ${PHP_BIN} artisan $*"
 }
 
-seeder_exists() {
-  # usage: seeder_exists "Database\\Seeders\\IncomeSourceSeeder"
-  local CLS="$1"
-  run_as_app "cd '$APP_DIR' && ${PHP_BIN} -r \"require 'vendor/autoload.php'; echo class_exists(${CLS}::class) ? 1 : 0;\"" 2>/dev/null | grep -q '^1$'
-}
-
 #############################################
 # Main
 #############################################
@@ -62,14 +56,14 @@ fi
 mkdir -p "$BACKUP_DIR"
 chmod 700 "$BACKUP_DIR" || true
 
-# We require .env to exist BEFORE deploy. If it doesn't, stop.
+# Require .env to exist BEFORE deploy (deploy must not generate secrets)
 if [[ ! -f "$APP_DIR/.env" ]]; then
   err ".env not found at ${APP_DIR}/.env"
   err "Create it once using install.sh before running deploy."
   exit 1
 fi
 
-# 0) Backup .env for safety (before doing anything)
+# 0) Backup .env (outside repo)
 TS="$(date +%F_%H%M%S)"
 ENV_BAK="${BACKUP_DIR}/.env.${TS}.bak"
 log "Backing up .env -> ${ENV_BAK} ..."
@@ -83,7 +77,7 @@ run_as_app "cd '$APP_DIR' && \
    (git config --unset-all remote.origin.fetch >/dev/null 2>&1 || true; \
     git config --add remote.origin.fetch '+refs/heads/*:refs/remotes/origin/*'))"
 
-# 1) Git fetch + hard reset to origin/master (no merges, no rebases)
+# 1) Fetch + hard reset to origin/master
 log "Fetching origin (prune) ..."
 run_as_app "cd '$APP_DIR' && git fetch --prune origin"
 
@@ -94,23 +88,21 @@ if ! run_as_app "cd '$APP_DIR' && git show-ref --verify --quiet 'refs/remotes/or
   exit 1
 fi
 
-# Reset first to avoid noisy "M package-lock.json" messages
 log "Resetting working tree to origin/${BRANCH} ..."
 run_as_app "cd '$APP_DIR' && git reset --hard 'origin/${BRANCH}'"
 run_as_app "cd '$APP_DIR' && git checkout -B '${BRANCH}' 'origin/${BRANCH}'"
 
-# If an old backup folder exists inside the repo (from older scripts), remove it as root
+# Remove legacy repo backup folder if it exists (root-owned leftovers)
 if [[ -d "$APP_DIR/_deploy_backups" ]]; then
-  log "Removing legacy $APP_DIR/_deploy_backups (root-owned leftovers) ..."
+  log "Removing legacy $APP_DIR/_deploy_backups ..."
   rm -rf "$APP_DIR/_deploy_backups"
 fi
 
 # Clean untracked files (do NOT use -x; keep ignored like .env)
-# Also exclude .env explicitly as extra safety.
 log "Cleaning untracked files (git clean -fd) ..."
 run_as_app "cd '$APP_DIR' && git clean -fd -e '.env'"
 
-# If something ever removed .env, restore it automatically from the backup
+# Restore .env if something removed it (extra safety)
 if [[ ! -f "$APP_DIR/.env" ]]; then
   warn ".env missing after git operations — restoring from ${ENV_BAK} ..."
   cp -a "$ENV_BAK" "$APP_DIR/.env"
@@ -124,7 +116,7 @@ if [[ ! -f "$APP_DIR/composer.lock" ]]; then
   exit 1
 fi
 
-# 2) Clean build artifacts (prevents broken vendor/node state)
+# 2) Clean build artifacts (prevents broken vendor/node/build state)
 log "Removing old vendor/node/build/cache artifacts ..."
 run_as_app "cd '$APP_DIR' && rm -rf vendor node_modules public/build bootstrap/cache/*.php"
 
@@ -153,57 +145,24 @@ fi
 log "Running migrations ..."
 artisan "migrate --force"
 
-# 5.5) Seed defaults (safe / idempotent)
-log "Seeding defaults (safe) ..."
+# 6) Seed ALL defaults (idempotent seeders = safe every deploy)
+# This is the most reliable approach and avoids quoting/class_exists problems.
+log "Running database seeders (safe / idempotent) ..."
+artisan "db:seed --force"
 
-# A) Create default admin only if no admin exists (safe)
-if run_as_app "cd '$APP_DIR' && ${PHP_BIN} -r \"require 'vendor/autoload.php'; \$app=require 'bootstrap/app.php'; \$app->make(Illuminate\\\\Contracts\\\\Console\\\\Kernel::class)->bootstrap(); echo class_exists(App\\\\Models\\\\User::class) ? App\\\\Models\\\\User::where('role','admin')->count() : 0;\" | grep -q '^0$'"; then
-  if seeder_exists "Database\\\\Seeders\\\\AdminUserSeeder"; then
-    log "No admin found — running AdminUserSeeder ..."
-    artisan "db:seed --class=Database\\Seeders\\AdminUserSeeder --force"
-  else
-    warn "No admin found, but AdminUserSeeder not present. Skipping."
-    warn "Recommendation: add AdminUserSeeder so deploy can auto-create initial admin."
-  fi
-fi
-
-# B) Ensure default Income Sources exist (idempotent)
-if seeder_exists "Database\\\\Seeders\\\\IncomeSourceSeeder"; then
-  log "Ensuring income sources exist — running IncomeSourceSeeder (idempotent) ..."
-  artisan "db:seed --class=Database\\Seeders\\IncomeSourceSeeder --force"
-else
-  warn "IncomeSourceSeeder not present. Skipping."
-fi
-
-# C) Ensure default Expense Categories exist (idempotent)
-if seeder_exists "Database\\\\Seeders\\\\ExpenseCategorySeeder"; then
-  log "Ensuring expense categories exist — running ExpenseCategorySeeder (idempotent) ..."
-  artisan "db:seed --class=Database\\Seeders\\ExpenseCategorySeeder --force"
-else
-  warn "ExpenseCategorySeeder not present. Skipping."
-fi
-
-# D) Ensure default Payment Methods exist (idempotent)
-if seeder_exists "Database\\\\Seeders\\\\PaymentMethodSeeder"; then
-  log "Ensuring payment methods exist — running PaymentMethodSeeder (idempotent) ..."
-  artisan "db:seed --class=Database\\Seeders\\PaymentMethodSeeder --force"
-else
-  warn "PaymentMethodSeeder not present. Skipping."
-fi
-
-# 6) optimize:clear && config:cache (and route cache)
+# 7) optimize:clear && config:cache (and route cache)
 log "Clearing & caching Laravel config/routes ..."
 artisan "optimize:clear"
 artisan "config:cache"
 artisan "route:cache"
 
-# 7) Permissions (storage + bootstrap/cache writable by www-data)
+# 8) Permissions (storage + bootstrap/cache writable by www-data)
 log "Fixing permissions (storage + bootstrap/cache) ..."
 chown -R "$APP_USER":www-data "$APP_DIR/storage" "$APP_DIR/bootstrap/cache" || true
 find "$APP_DIR/storage" "$APP_DIR/bootstrap/cache" -type d -exec chmod 2775 {} \; || true
 find "$APP_DIR/storage" "$APP_DIR/bootstrap/cache" -type f -exec chmod 664 {} \; || true
 
-# 8) Restart php-fpm, reload nginx
+# 9) Restart php-fpm, reload nginx
 log "Restarting PHP-FPM + reloading Nginx ..."
 systemctl restart "$PHP_FPM_SERVICE"
 systemctl reload "$NGINX_SERVICE"
