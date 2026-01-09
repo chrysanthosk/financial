@@ -47,10 +47,9 @@
                    </li>
 
                     <li class="nav-item">
-                       <a href="javascript:void(0)" class="nav-link disabled" tabindex="-1" aria-disabled="true">
-                            <i class="fas fa-file-invoice-dollar mr-1"></i> Expenses
-                            <span class="badge badge-light text-dark ml-1">Soon</span>
-                        </a>
+                      <a href="{{ route('expenses.index') }}" class="nav-link {{ request()->is('expenses*') ? 'active' : '' }}">
+                        <i class="fas fa-file-invoice-dollar mr-1"></i> Expenses
+                      </a>
                     </li>
 
                     <li class="nav-item">
