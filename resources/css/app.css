@@ -1,11 +1,204 @@
-@import 'tailwindcss';
+@import "admin-lte/dist/css/adminlte.min.css";
+@import "@fortawesome/fontawesome-free/css/all.min.css";
 
-@source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
-@source '../../storage/framework/views/*.php';
-@source '../**/*.blade.php';
-@source '../**/*.js';
+/* Small tweaks */
+.brand-link { font-weight: 600; }
 
-@theme {
-    --font-sans: 'Instrument Sans', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
-        'Segoe UI Symbol', 'Noto Color Emoji';
+/* ===== AdminLTE Dark Mode (uses body.dark-mode) ===== */
+
+/* Core surfaces */
+body.dark-mode,
+body.dark-mode .content-wrapper,
+body.dark-mode .main-footer,
+body.dark-mode .card,
+body.dark-mode .login-card-body,
+body.dark-mode .register-card-body {
+  background-color: #343a40 !important;
+  color: #f8f9fa !important;
+}
+
+/* Navbar + dropdown */
+body.dark-mode .main-header.navbar {
+  background-color: #343a40 !important;
+  border-bottom: 1px solid #495057 !important;
+}
+
+body.dark-mode .navbar-nav .nav-link,
+body.dark-mode .navbar-nav .nav-link i,
+body.dark-mode .navbar-nav .nav-link span {
+  color: #f8f9fa !important;
+}
+
+body.dark-mode .dropdown-menu {
+  background-color: #2b2f33 !important;
+  border-color: #495057 !important;
+}
+
+body.dark-mode .dropdown-item {
+  color: #f8f9fa !important;
+}
+
+body.dark-mode .dropdown-item:hover {
+  background-color: rgba(255, 255, 255, 0.06) !important;
+}
+
+/* Forms */
+body.dark-mode .form-control,
+body.dark-mode .custom-select,
+body.dark-mode .input-group-text {
+  background-color: #2b2f33 !important;
+  color: #f8f9fa !important;
+  border-color: #495057 !important;
+}
+
+body.dark-mode .form-control::placeholder {
+  color: #adb5bd !important;
+}
+
+body.dark-mode .form-control:focus,
+body.dark-mode .custom-select:focus {
+  background-color: #2b2f33 !important;
+  color: #f8f9fa !important;
+  border-color: #6c757d !important;
+  box-shadow: none !important;
+}
+
+/* Links + buttons */
+body.dark-mode a { color: #9ec5fe; }
+body.dark-mode .btn-outline-secondary { border-color: #6c757d; color: #f8f9fa; }
+
+/* ===== IMPORTANT: Tables in dark mode ===== */
+/* The key missing piece in your current file: table background + thead background */
+body.dark-mode .table {
+  color: #f8f9fa !important;
+  background-color: #343a40 !important;
+}
+
+body.dark-mode .table thead th {
+  color: #f8f9fa !important;
+  background-color: #3b4147 !important;
+  border-color: #495057 !important;
+}
+
+body.dark-mode .table td,
+body.dark-mode .table th {
+  border-color: #495057 !important;
+}
+
+body.dark-mode .table-striped tbody tr:nth-of-type(odd) {
+  background-color: rgba(255, 255, 255, 0.03) !important;
+}
+
+body.dark-mode .table-hover tbody tr:hover {
+  background-color: rgba(255, 255, 255, 0.06) !important;
+}
+
+/* Make sure the card body doesn't “look white” behind table */
+body.dark-mode .card,
+body.dark-mode .card-header,
+body.dark-mode .card-body {
+  background-color: #343a40 !important;
+  color: #f8f9fa !important;
+  border-color: #495057 !important;
+}
+
+/* ===== FORCE tables to follow theme (AdminLTE) ===== */
+
+/* Dark mode: make tables dark */
+body.dark-mode .content-wrapper .table,
+body.dark-mode .content-wrapper .table td,
+body.dark-mode .content-wrapper .table th {
+  background-color: #343a40 !important;
+  color: #f8f9fa !important;
+  border-color: #495057 !important;
+}
+
+body.dark-mode .content-wrapper .table thead th {
+  background-color: #3b4147 !important;
+  color: #f8f9fa !important;
+  border-color: #495057 !important;
+}
+
+body.dark-mode .content-wrapper .table-striped tbody tr:nth-of-type(odd) td,
+body.dark-mode .content-wrapper .table-striped tbody tr:nth-of-type(odd) th {
+  background-color: rgba(255, 255, 255, 0.03) !important;
+}
+
+/* Light mode: ensure normal readable table text */
+body:not(.dark-mode) .content-wrapper .table,
+body:not(.dark-mode) .content-wrapper .table td,
+body:not(.dark-mode) .content-wrapper .table th {
+  color: #212529 !important;
+}
+
+/* Role badge visibility fix in LIGHT mode */
+.badge {
+  color: #fff; /* default badge text should be visible */
+}
+
+/* If you use badge-secondary or badge-primary already, this is fine.
+   But if your role badge is setting a light background, force contrast: */
+.badge.badge-light {
+  color: #212529 !important;
+}
+
+/* --- LIGHT MODE: ensure badge text is readable --- */
+body:not(.dark-mode) .badge {
+  color: #212529 !important;
+}
+
+/* Your "Soon" badges are badge-light text-dark now, but keep safe defaults */
+body:not(.dark-mode) .badge-light {
+  background-color: #e9ecef !important;
+  color: #212529 !important;
+}
+
+/* --- DARK MODE: force tables to be dark (AdminLTE tables otherwise stay white) --- */
+body.dark-mode .content-wrapper .table,
+body.dark-mode .content-wrapper .table td,
+body.dark-mode .content-wrapper .table th {
+  background-color: #343a40 !important;
+  color: #f8f9fa !important;
+  border-color: #495057 !important;
+}
+
+body.dark-mode .content-wrapper .table thead th {
+  background-color: #3b4147 !important;
+  color: #f8f9fa !important;
+  border-color: #495057 !important;
+}
+
+body.dark-mode .content-wrapper .table-striped tbody tr:nth-of-type(odd) td,
+body.dark-mode .content-wrapper .table-striped tbody tr:nth-of-type(odd) th {
+  background-color: rgba(255, 255, 255, 0.03) !important;
+}
+
+/* ===== Make "Soon" + Role readable in LIGHT mode ===== */
+body:not(.dark-mode) .nav-sidebar .badge,
+body:not(.dark-mode) .role-badge {
+  color: #212529 !important;
+}
+
+/* Role badge styling that works in BOTH modes */
+.role-badge {
+  padding: 0.35em 0.6em;
+  border-radius: 0.25rem;
+  font-weight: 600;
+}
+
+/* Light mode role badge look */
+body:not(.dark-mode) .role-badge-admin,
+body:not(.dark-mode) .role-badge-user {
+  background: #e9ecef !important;
+  color: #212529 !important;
+}
+
+/* Dark mode role badge look */
+body.dark-mode .role-badge-admin {
+  background: #007bff !important; /* Admin blue */
+  color: #fff !important;
+}
+body.dark-mode .role-badge-user {
+  background: #6c757d !important; /* Secondary */
+  color: #fff !important;
 }
