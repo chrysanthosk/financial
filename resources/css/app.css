@@ -1,10 +1,33 @@
 @import "admin-lte/dist/css/adminlte.min.css";
 @import "@fortawesome/fontawesome-free/css/all.min.css";
 
-/* Small tweaks */
+/* ============================================================
+   Small tweaks
+   ============================================================ */
 .brand-link { font-weight: 600; }
 
-/* ===== AdminLTE Dark Mode (uses body.dark-mode) ===== */
+.btn-xs {
+  padding: .15rem .35rem;
+  font-size: .75rem;
+  line-height: 1.2;
+  border-radius: .2rem;
+}
+
+/* Keep small filter buttons consistent in card headers */
+.card-header .btn { white-space: nowrap; }
+
+/* Compact “filter/reset” buttons used in Income/Expenses headers */
+.btn-month {
+  padding: .375rem .75rem;
+  font-size: .875rem;
+  line-height: 1.5;
+  border-radius: .25rem;
+}
+
+/* ============================================================
+   AdminLTE Dark Mode
+   AdminLTE uses: body.dark-mode
+   ============================================================ */
 
 /* Core surfaces */
 body.dark-mode,
@@ -17,7 +40,7 @@ body.dark-mode .register-card-body {
   color: #f8f9fa !important;
 }
 
-/* Navbar + dropdown */
+/* Navbar + links */
 body.dark-mode .main-header.navbar {
   background-color: #343a40 !important;
   border-bottom: 1px solid #495057 !important;
@@ -29,6 +52,7 @@ body.dark-mode .navbar-nav .nav-link span {
   color: #f8f9fa !important;
 }
 
+/* Dropdown */
 body.dark-mode .dropdown-menu {
   background-color: #2b2f33 !important;
   border-color: #495057 !important;
@@ -42,7 +66,7 @@ body.dark-mode .dropdown-item:hover {
   background-color: rgba(255, 255, 255, 0.06) !important;
 }
 
-/* Forms */
+/* Forms (inputs/selects) */
 body.dark-mode .form-control,
 body.dark-mode .custom-select,
 body.dark-mode .input-group-text {
@@ -63,12 +87,46 @@ body.dark-mode .custom-select:focus {
   box-shadow: none !important;
 }
 
-/* Links + buttons */
-body.dark-mode a { color: #9ec5fe; }
-body.dark-mode .btn-outline-secondary { border-color: #6c757d; color: #f8f9fa; }
+/* Select dropdown options (browser-dependent, but helps) */
+body.dark-mode select.form-control {
+  background-color: #2b2f33 !important;
+  color: #f8f9fa !important;
+  border-color: #495057 !important;
+}
+body.dark-mode select.form-control option {
+  background-color: #2b2f33 !important;
+  color: #f8f9fa !important;
+}
 
-/* ===== IMPORTANT: Tables in dark mode ===== */
-/* The key missing piece in your current file: table background + thead background */
+/* Bootstrap text-muted is too dark on dark backgrounds */
+body.dark-mode .text-muted {
+  color: #c2c7d0 !important; /* AdminLTE-ish muted */
+}
+
+/* Links */
+body.dark-mode a { color: #9ec5fe; }
+
+/* Outline buttons in dark mode */
+body.dark-mode .btn-outline-secondary {
+  border-color: rgba(255,255,255,.35) !important;
+  color: #f8f9fa !important;
+}
+
+body.dark-mode .btn-outline-dark.btn-month,
+body.dark-mode .btn-outline-dark {
+  color: #f8f9fa !important;
+  border-color: rgba(255,255,255,.35) !important;
+}
+
+body.dark-mode .btn-outline-dark.btn-month:hover,
+body.dark-mode .btn-outline-dark:hover {
+  background: rgba(255,255,255,.12) !important;
+}
+
+/* ============================================================
+   Tables
+   Fix: AdminLTE dark-mode sometimes leaves tables white
+   ============================================================ */
 body.dark-mode .table {
   color: #f8f9fa !important;
   background-color: #343a40 !important;
@@ -93,7 +151,7 @@ body.dark-mode .table-hover tbody tr:hover {
   background-color: rgba(255, 255, 255, 0.06) !important;
 }
 
-/* Make sure the card body doesn't “look white” behind table */
+/* Ensure card sections behind tables aren’t white */
 body.dark-mode .card,
 body.dark-mode .card-header,
 body.dark-mode .card-body {
@@ -102,84 +160,24 @@ body.dark-mode .card-body {
   border-color: #495057 !important;
 }
 
-/* ===== FORCE tables to follow theme (AdminLTE) ===== */
+/* ============================================================
+   Light Mode safety (readable defaults)
+   ============================================================ */
 
-/* Dark mode: make tables dark */
-body.dark-mode .content-wrapper .table,
-body.dark-mode .content-wrapper .table td,
-body.dark-mode .content-wrapper .table th {
-  background-color: #343a40 !important;
-  color: #f8f9fa !important;
-  border-color: #495057 !important;
-}
-
-body.dark-mode .content-wrapper .table thead th {
-  background-color: #3b4147 !important;
-  color: #f8f9fa !important;
-  border-color: #495057 !important;
-}
-
-body.dark-mode .content-wrapper .table-striped tbody tr:nth-of-type(odd) td,
-body.dark-mode .content-wrapper .table-striped tbody tr:nth-of-type(odd) th {
-  background-color: rgba(255, 255, 255, 0.03) !important;
-}
-
-/* Light mode: ensure normal readable table text */
+/* Make sure tables are readable in light mode (avoid accidental overrides) */
 body:not(.dark-mode) .content-wrapper .table,
 body:not(.dark-mode) .content-wrapper .table td,
 body:not(.dark-mode) .content-wrapper .table th {
   color: #212529 !important;
 }
 
-/* Role badge visibility fix in LIGHT mode */
-.badge {
-  color: #fff; /* default badge text should be visible */
-}
-
-/* If you use badge-secondary or badge-primary already, this is fine.
-   But if your role badge is setting a light background, force contrast: */
-.badge.badge-light {
-  color: #212529 !important;
-}
-
-/* --- LIGHT MODE: ensure badge text is readable --- */
-body:not(.dark-mode) .badge {
-  color: #212529 !important;
-}
-
-/* Your "Soon" badges are badge-light text-dark now, but keep safe defaults */
+/* “Soon” badges are badge-light text-dark; keep them readable */
 body:not(.dark-mode) .badge-light {
   background-color: #e9ecef !important;
   color: #212529 !important;
 }
 
-/* --- DARK MODE: force tables to be dark (AdminLTE tables otherwise stay white) --- */
-body.dark-mode .content-wrapper .table,
-body.dark-mode .content-wrapper .table td,
-body.dark-mode .content-wrapper .table th {
-  background-color: #343a40 !important;
-  color: #f8f9fa !important;
-  border-color: #495057 !important;
-}
-
-body.dark-mode .content-wrapper .table thead th {
-  background-color: #3b4147 !important;
-  color: #f8f9fa !important;
-  border-color: #495057 !important;
-}
-
-body.dark-mode .content-wrapper .table-striped tbody tr:nth-of-type(odd) td,
-body.dark-mode .content-wrapper .table-striped tbody tr:nth-of-type(odd) th {
-  background-color: rgba(255, 255, 255, 0.03) !important;
-}
-
-/* ===== Make "Soon" + Role readable in LIGHT mode ===== */
-body:not(.dark-mode) .nav-sidebar .badge,
-body:not(.dark-mode) .role-badge {
-  color: #212529 !important;
-}
-
-/* Role badge styling that works in BOTH modes */
+/* Role badges (optional utility classes you used) */
 .role-badge {
   padding: 0.35em 0.6em;
   border-radius: 0.25rem;
@@ -195,86 +193,10 @@ body:not(.dark-mode) .role-badge-user {
 
 /* Dark mode role badge look */
 body.dark-mode .role-badge-admin {
-  background: #007bff !important; /* Admin blue */
+  background: #007bff !important;
   color: #fff !important;
 }
 body.dark-mode .role-badge-user {
-  background: #6c757d !important; /* Secondary */
+  background: #6c757d !important;
   color: #fff !important;
 }
-
-/* Ensure badges are readable in light mode (avoid theme overrides making text white) */
-.navbar .badge,
-.content-wrapper .badge {
-  color: #212529 !important; /* dark text */
-}
-
-/* If any custom rules are making table text white in light mode, force default */
-:root[data-theme="light"] .table,
-:root[data-theme="light"] .table td,
-:root[data-theme="light"] .table th {
-  color: #212529 !important;
-}
-
-/* Make "month filter" button look right in dark mode */
-:root[data-theme="dark"] .btn-month,
-body.dark-mode .btn-month {
-  color: #fff !important;
-  border-color: rgba(255,255,255,.6) !important;
-}
-
-:root[data-theme="dark"] .btn-month:hover,
-body.dark-mode .btn-month:hover {
-  color: #111 !important;
-  background: rgba(255,255,255,.85) !important;
-  border-color: rgba(255,255,255,.85) !important;
-}
-
-/* Bootstrap text-muted is too dark on dark backgrounds */
-:root[data-theme="dark"] .text-muted,
-body.dark-mode .text-muted {
-  color: #c2c7d0 !important; /* AdminLTE-ish muted */
-}
-
-/* Make muted text readable in dark mode (AdminLTE dark-mode) */
-:root[data-theme="dark"] .text-muted,
-body.dark-mode .text-muted {
-  color: #c2c7d0 !important;
-}
-
-/* Make outline buttons readable in dark mode */
-:root[data-theme="dark"] .btn-month,
-body.dark-mode .btn-month {
-  color: #fff !important;
-  border-color: rgba(255,255,255,.55) !important;
-}
-
-:root[data-theme="dark"] .btn-month:hover,
-body.dark-mode .btn-month:hover {
-  background: rgba(255,255,255,.15) !important;
-}
-
-/* Fix bootstrap badges that use text-dark (so they don't go invisible on light mode) */
-:root[data-theme="light"] .badge.text-dark,
-body:not(.dark-mode) .badge.text-dark {
-  color: #111 !important;
-}
-
-/**/
-body.dark-mode select.form-control {
-  background-color: #343a40;
-  color: #f8f9fa;
-  border-color: rgba(255,255,255,.15);
-}
-body.dark-mode select.form-control option {
-  background-color: #343a40;
-  color: #f8f9fa;
-}
-
-.btn-xs {
-  padding: .15rem .35rem;
-  font-size: .75rem;
-  line-height: 1.2;
-  border-radius: .2rem;
-}
-
