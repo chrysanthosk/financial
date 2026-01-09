@@ -33,6 +33,10 @@ run_as_app() {
   sudo -u "$APP_USER" bash -lc "$*"
 }
 
+artisan() {
+  run_as_app "cd '$APP_DIR' && ${PHP_BIN} artisan $*"
+}
+
 #############################################
 # Main
 #############################################
@@ -40,24 +44,22 @@ require_root
 
 log "Deploying ${APP_DIR} from origin/${BRANCH} ..."
 
-# Safety: ensure repo directory exists
 if [[ ! -d "$APP_DIR/.git" ]]; then
   err "No git repo found at $APP_DIR"
   exit 1
 fi
 
-# 0) Ensure remote fetch rule is sane (prevents fetch failures caused by old main-only refspec)
+# 0) Ensure remote fetch refspec includes ALL branches (prevents old main-only rules)
 log "Ensuring git remote fetch refspec includes all branches ..."
 run_as_app "cd '$APP_DIR' && \
   (git config --get-all remote.origin.fetch | grep -q 'refs/heads/\\*:refs/remotes/origin/\\*' || \
    (git config --unset-all remote.origin.fetch >/dev/null 2>&1 || true; \
     git config --add remote.origin.fetch '+refs/heads/*:refs/remotes/origin/*'))"
 
-# 1) Git fetch + hard reset to origin/master (no merges, no rebases)
+# 1) Git fetch + hard reset to origin/master
 log "Fetching origin (prune) ..."
 run_as_app "cd '$APP_DIR' && git fetch --prune origin"
 
-# Verify the remote branch exists
 if ! run_as_app "cd '$APP_DIR' && git show-ref --verify --quiet 'refs/remotes/origin/${BRANCH}'"; then
   err "Remote branch origin/${BRANCH} not found."
   err "Available remote branches:"
@@ -66,32 +68,32 @@ if ! run_as_app "cd '$APP_DIR' && git show-ref --verify --quiet 'refs/remotes/or
 fi
 
 log "Checking out ${BRANCH} and resetting hard to origin/${BRANCH} ..."
-# Create/switch local BRANCH to track origin/BRANCH
 run_as_app "cd '$APP_DIR' && git checkout -B '${BRANCH}' 'origin/${BRANCH}'"
-# Hard reset to exact commit
 run_as_app "cd '$APP_DIR' && git reset --hard 'origin/${BRANCH}'"
 
-# Clean any untracked files from previous deploys (safe because repo is authoritative)
-log "Cleaning untracked files (git clean -fd) ..."
-run_as_app "cd '$APP_DIR' && git clean -fd"
+# Clean EVERYTHING untracked including vendor/node_modules (prevents broken states)
+log "Cleaning untracked files (git clean -fdx) ..."
+run_as_app "cd '$APP_DIR' && git clean -fdx"
 
-# 1.5) Sanity: ensure .env exists (deploy should never generate secrets)
+# Safety: .env must exist (deploy must not generate secrets)
 if [[ ! -f "$APP_DIR/.env" ]]; then
   err ".env not found at ${APP_DIR}/.env"
-  err "Create it once (from your install script) before running deploy."
+  err "Create it once using install.sh before running deploy."
   exit 1
 fi
 
-# 2) Clean vendor + cached bootstrap files to prevent broken vendor state
-log "Cleaning vendor/ and bootstrap cache ..."
-run_as_app "cd '$APP_DIR' && rm -rf vendor/ bootstrap/cache/*.php"
+# Safety : Fail early if composer.lock is missing (prevents accidental “install without lock”)
+if [[ ! -f "$APP_DIR/composer.lock" ]]; then
+  err "composer.lock missing. Refusing to deploy without a lockfile."
+  exit 1
+fi
 
-# 3) Composer install (NO UPDATE)
+# 2) Composer install (NO UPDATE) based on composer.lock
 log "Installing PHP dependencies (composer install --no-dev) ..."
 run_as_app "cd '$APP_DIR' && ${COMPOSER_BIN} clear-cache >/dev/null 2>&1 || true"
 run_as_app "cd '$APP_DIR' && COMPOSER_ALLOW_SUPERUSER=1 ${COMPOSER_BIN} install --no-dev --prefer-dist --optimize-autoloader --no-interaction"
 
-# 4) Front-end build (npm ci preferred)
+# 3) npm ci && npm run build
 if run_as_app "command -v ${NPM_BIN} >/dev/null 2>&1"; then
   log "Installing Node dependencies ..."
   if [[ -f "$APP_DIR/package-lock.json" ]]; then
@@ -107,27 +109,49 @@ else
   warn "npm not found. Skipping frontend build."
 fi
 
-# 5) Migrations
+# 4) Migrate
 log "Running migrations ..."
-run_as_app "cd '$APP_DIR' && ${PHP_BIN} artisan migrate --force"
+artisan "migrate --force"
 
-# 5.5) Seeders (safe / idempotent) - creates first admin if missing
-log "Running seeders (safe) ..."
-run_as_app "cd '$APP_DIR' && ${PHP_BIN} artisan db:seed --force"
+# 4.5) Seed only if missing (prevents surprises)
+log "Seeding defaults if needed ..."
 
-# 6) Clear + cache for production
+# A) Create default admin only if no admin exists (safe)
+# Requires a seeder named Database\\Seeders\\AdminUserSeeder (optional)
+if run_as_app "cd '$APP_DIR' && ${PHP_BIN} -r \"require 'vendor/autoload.php'; \$app=require 'bootstrap/app.php'; \$app->make(Illuminate\\\\Contracts\\\\Console\\\\Kernel::class)->bootstrap(); echo class_exists(App\\\\Models\\\\User::class) ? App\\\\Models\\\\User::where('role','admin')->count() : 0;\" | grep -q '^0$'"; then
+  if run_as_app "cd '$APP_DIR' && ${PHP_BIN} -r \"require 'vendor/autoload.php'; \$app=require 'bootstrap/app.php'; \$app->make(Illuminate\\\\Contracts\\\\Console\\\\Kernel::class)->bootstrap(); echo class_exists(Database\\\\Seeders\\\\AdminUserSeeder::class) ? 1 : 0;\" | grep -q '^1$'"; then
+    log "No admin found — running AdminUserSeeder ..."
+    artisan "db:seed --class=Database\\Seeders\\AdminUserSeeder --force"
+  else
+    warn "No admin found, but AdminUserSeeder not present. Skipping."
+    warn "Recommendation: add AdminUserSeeder so deploy can auto-create initial admin."
+  fi
+fi
+
+# B) Seed Income sources only if table empty (safe)
+# Requires a seeder named Database\\Seeders\\IncomeSourceSeeder (optional)
+if run_as_app "cd '$APP_DIR' && ${PHP_BIN} -r \"require 'vendor/autoload.php'; \$app=require 'bootstrap/app.php'; \$app->make(Illuminate\\\\Contracts\\\\Console\\\\Kernel::class)->bootstrap(); echo class_exists(App\\\\Models\\\\IncomeSource::class) ? App\\\\Models\\\\IncomeSource::count() : 0;\" | grep -q '^0$'"; then
+  if run_as_app "cd '$APP_DIR' && ${PHP_BIN} -r \"require 'vendor/autoload.php'; \$app=require 'bootstrap/app.php'; \$app->make(Illuminate\\\\Contracts\\\\Console\\\\Kernel::class)->bootstrap(); echo class_exists(Database\\\\Seeders\\\\IncomeSourceSeeder::class) ? 1 : 0;\" | grep -q '^1$'"; then
+    log "No income sources found — running IncomeSourceSeeder ..."
+    artisan "db:seed --class=Database\\Seeders\\IncomeSourceSeeder --force"
+  else
+    warn "IncomeSourceSeeder not present. Skipping."
+  fi
+fi
+
+# 5) optimize:clear && config:cache (and route cache)
 log "Clearing & caching Laravel config/routes ..."
-run_as_app "cd '$APP_DIR' && ${PHP_BIN} artisan optimize:clear"
-run_as_app "cd '$APP_DIR' && ${PHP_BIN} artisan config:cache"
-run_as_app "cd '$APP_DIR' && ${PHP_BIN} artisan route:cache"
+artisan "optimize:clear"
+artisan "config:cache"
+artisan "route:cache"
 
-# 7) Permissions (critical for compiled Blade views, cache, logs)
+# 6) Permissions (storage + bootstrap/cache writable by www-data)
 log "Fixing permissions (storage + bootstrap/cache) ..."
 chown -R "$APP_USER":www-data "$APP_DIR/storage" "$APP_DIR/bootstrap/cache" || true
 find "$APP_DIR/storage" "$APP_DIR/bootstrap/cache" -type d -exec chmod 2775 {} \; || true
 find "$APP_DIR/storage" "$APP_DIR/bootstrap/cache" -type f -exec chmod 664 {} \; || true
 
-# 8) Restart services
+# 7) Restart php-fpm, reload nginx
 log "Restarting PHP-FPM + reloading Nginx ..."
 systemctl restart "$PHP_FPM_SERVICE"
 systemctl reload "$NGINX_SERVICE"

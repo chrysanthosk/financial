@@ -39,22 +39,22 @@
                         </a>
                     </li>
 
-                    <li class="nav-item">
-                        <a href="#" class="nav-link">
-                            <i class="fas fa-hand-holding-usd mr-1"></i> Income
-                            <span class="badge badge-light text-dark ml-1">Soon</span>
-                        </a>
-                    </li>
+                   <li class="nav-item">
+                       <a href="{{ route('income.index') }}"
+                          class="nav-link {{ request()->routeIs('income.*') ? 'active' : '' }} {{ request()->is('income*') ? 'active' : '' }}">
+                           <i class="fas fa-coins mr-1"></i> Income
+                       </a>
+                   </li>
 
                     <li class="nav-item">
-                        <a href="#" class="nav-link">
+                       <a href="javascript:void(0)" class="nav-link disabled" tabindex="-1" aria-disabled="true">
                             <i class="fas fa-file-invoice-dollar mr-1"></i> Expenses
                             <span class="badge badge-light text-dark ml-1">Soon</span>
                         </a>
                     </li>
 
                     <li class="nav-item">
-                        <a href="#" class="nav-link">
+                        <a href="javascript:void(0)" class="nav-link disabled" tabindex="-1" aria-disabled="true">
                             <i class="fas fa-university mr-1"></i> Accounts
                             <span class="badge badge-light text-dark ml-1">Soon</span>
                         </a>
