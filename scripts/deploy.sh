@@ -40,6 +40,12 @@ artisan() {
   run_as_app "cd '$APP_DIR' && ${PHP_BIN} artisan $*"
 }
 
+seeder_exists() {
+  # usage: seeder_exists "Database\\Seeders\\IncomeSourceSeeder"
+  local CLS="$1"
+  run_as_app "cd '$APP_DIR' && ${PHP_BIN} -r \"require 'vendor/autoload.php'; echo class_exists(${CLS}::class) ? 1 : 0;\"" 2>/dev/null | grep -q '^1$'
+}
+
 #############################################
 # Main
 #############################################
@@ -147,12 +153,12 @@ fi
 log "Running migrations ..."
 artisan "migrate --force"
 
-# 5.5) Seed only if missing (prevents surprises)
-log "Seeding defaults if needed ..."
+# 5.5) Seed defaults (safe / idempotent)
+log "Seeding defaults (safe) ..."
 
 # A) Create default admin only if no admin exists (safe)
 if run_as_app "cd '$APP_DIR' && ${PHP_BIN} -r \"require 'vendor/autoload.php'; \$app=require 'bootstrap/app.php'; \$app->make(Illuminate\\\\Contracts\\\\Console\\\\Kernel::class)->bootstrap(); echo class_exists(App\\\\Models\\\\User::class) ? App\\\\Models\\\\User::where('role','admin')->count() : 0;\" | grep -q '^0$'"; then
-  if run_as_app "cd '$APP_DIR' && ${PHP_BIN} -r \"require 'vendor/autoload.php'; \$app=require 'bootstrap/app.php'; \$app->make(Illuminate\\\\Contracts\\\\Console\\\\Kernel::class)->bootstrap(); echo class_exists(Database\\\\Seeders\\\\AdminUserSeeder::class) ? 1 : 0;\" | grep -q '^1$'"; then
+  if seeder_exists "Database\\\\Seeders\\\\AdminUserSeeder"; then
     log "No admin found — running AdminUserSeeder ..."
     artisan "db:seed --class=Database\\Seeders\\AdminUserSeeder --force"
   else
@@ -161,12 +167,28 @@ if run_as_app "cd '$APP_DIR' && ${PHP_BIN} -r \"require 'vendor/autoload.php'; \
   fi
 fi
 
-# B) Ensure default Income Sources always exist (safe / idempotent)
-if run_as_app "cd '$APP_DIR' && ${PHP_BIN} -r \"require 'vendor/autoload.php'; \$app=require 'bootstrap/app.php'; \$app->make(Illuminate\\\\Contracts\\\\Console\\\\Kernel::class)->bootstrap(); echo class_exists(Database\\\\Seeders\\\\IncomeSourceSeeder::class) ? 1 : 0;\" | grep -q '^1$'"; then
+# B) Ensure default Income Sources exist (idempotent)
+if seeder_exists "Database\\\\Seeders\\\\IncomeSourceSeeder"; then
   log "Ensuring income sources exist — running IncomeSourceSeeder (idempotent) ..."
-  artisan "db:seed --class='Database\\Seeders\\IncomeSourceSeeder' --force"
+  artisan "db:seed --class=Database\\Seeders\\IncomeSourceSeeder --force"
 else
   warn "IncomeSourceSeeder not present. Skipping."
+fi
+
+# C) Ensure default Expense Categories exist (idempotent)
+if seeder_exists "Database\\\\Seeders\\\\ExpenseCategorySeeder"; then
+  log "Ensuring expense categories exist — running ExpenseCategorySeeder (idempotent) ..."
+  artisan "db:seed --class=Database\\Seeders\\ExpenseCategorySeeder --force"
+else
+  warn "ExpenseCategorySeeder not present. Skipping."
+fi
+
+# D) Ensure default Payment Methods exist (idempotent)
+if seeder_exists "Database\\\\Seeders\\\\PaymentMethodSeeder"; then
+  log "Ensuring payment methods exist — running PaymentMethodSeeder (idempotent) ..."
+  artisan "db:seed --class=Database\\Seeders\\PaymentMethodSeeder --force"
+else
+  warn "PaymentMethodSeeder not present. Skipping."
 fi
 
 # 6) optimize:clear && config:cache (and route cache)
