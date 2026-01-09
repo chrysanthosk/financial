@@ -4,56 +4,105 @@ use Illuminate\Support\Facades\Route;
 
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\ThemeController;
-use App\Http\Controllers\Admin\UserController as AdminUserController;
-
 use App\Http\Controllers\IncomeController;
 use App\Http\Controllers\ExpenseController;
+use App\Http\Controllers\EmailChangeController;
+use App\Http\Controllers\TwoFactorController;
 
+use App\Http\Controllers\Admin\UserController as AdminUserController;
+use App\Http\Controllers\Admin\SmtpSettingsController;
+use App\Http\Controllers\Admin\AuditController;
+
+/*
+|--------------------------------------------------------------------------
+| Public
+|--------------------------------------------------------------------------
+*/
 Route::get('/', function () {
     return auth()->check()
         ? redirect()->route('dashboard')
         : redirect()->route('login');
 });
 
+/*
+|--------------------------------------------------------------------------
+| Dashboard
+|--------------------------------------------------------------------------
+*/
 Route::get('/dashboard', function () {
     return view('dashboard');
 })->middleware(['auth', 'verified'])->name('dashboard');
 
+/*
+|--------------------------------------------------------------------------
+| Authenticated User Area
+|--------------------------------------------------------------------------
+*/
 Route::middleware('auth')->group(function () {
 
-    // Profile (Breeze default)
+    // Profile
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 
-    // Theme toggle (persist per-user)
+    // Password
+    Route::patch('/profile/password', [ProfileController::class, 'password'])
+        ->name('profile.password');
+
+    // Email change flow
+    Route::post('/profile/email', [EmailChangeController::class, 'requestChange'])
+        ->name('profile.email.request');
+
+    Route::get('/profile/email/confirm/{token}', [EmailChangeController::class, 'confirm'])
+        ->name('profile.email.confirm');
+
+    // 2FA
+    Route::get('/profile/2fa', [TwoFactorController::class, 'show'])->name('profile.2fa.show');
+    Route::post('/profile/2fa/enable', [TwoFactorController::class, 'enable'])->name('profile.2fa.enable');
+    Route::post('/profile/2fa/confirm', [TwoFactorController::class, 'confirm'])->name('profile.2fa.confirm');
+    Route::post('/profile/2fa/disable', [TwoFactorController::class, 'disable'])->name('profile.2fa.disable');
+
+    // Recovery codes regenerate
+    Route::post('/profile/2fa/recovery/regenerate', [TwoFactorController::class, 'regenerateRecoveryCodes'])
+        ->name('profile.2fa.recovery.regenerate');
+
+    // Theme
     Route::post('/theme', [ThemeController::class, 'update'])->name('theme.update');
 
     // Income
-    Route::get('/income', [IncomeController::class, 'index'])->name('income.index');
-    Route::get('/income/create', [IncomeController::class, 'create'])->name('income.create');
-    Route::post('/income', [IncomeController::class, 'store'])->name('income.store');
-    Route::get('/income/{income}/edit', [IncomeController::class, 'edit'])->name('income.edit');
-    Route::put('/income/{income}', [IncomeController::class, 'update'])->name('income.update');
-    Route::delete('/income/{income}', [IncomeController::class, 'destroy'])->name('income.destroy');
+    Route::resource('income', IncomeController::class)->except(['show']);
 
     // Expenses
-    Route::get('/expenses', [ExpenseController::class, 'index'])->name('expenses.index');
-    Route::get('/expenses/create', [ExpenseController::class, 'create'])->name('expenses.create');
-    Route::post('/expenses', [ExpenseController::class, 'store'])->name('expenses.store');
-    Route::get('/expenses/{expense}/edit', [ExpenseController::class, 'edit'])->name('expenses.edit');
-    Route::put('/expenses/{expense}', [ExpenseController::class, 'update'])->name('expenses.update');
-    Route::delete('/expenses/{expense}', [ExpenseController::class, 'destroy'])->name('expenses.destroy');
+    Route::resource('expenses', ExpenseController::class)->except(['show']);
 });
 
-// Admin area
-Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(function () {
-    Route::get('/users', [AdminUserController::class, 'index'])->name('users.index');
-    Route::get('/users/create', [AdminUserController::class, 'create'])->name('users.create');
-    Route::post('/users', [AdminUserController::class, 'store'])->name('users.store');
-    Route::get('/users/{user}/edit', [AdminUserController::class, 'edit'])->name('users.edit');
-    Route::put('/users/{user}', [AdminUserController::class, 'update'])->name('users.update');
-    Route::delete('/users/{user}', [AdminUserController::class, 'destroy'])->name('users.destroy');
-});
+/*
+|--------------------------------------------------------------------------
+| Admin Area
+|--------------------------------------------------------------------------
+*/
+Route::middleware(['auth', 'admin'])
+    ->prefix('admin')
+    ->name('admin.')
+    ->group(function () {
+
+        // Users
+        Route::get('/users', [AdminUserController::class, 'index'])->name('users.index');
+        Route::get('/users/create', [AdminUserController::class, 'create'])->name('users.create');
+        Route::post('/users', [AdminUserController::class, 'store'])->name('users.store');
+        Route::get('/users/{user}/edit', [AdminUserController::class, 'edit'])->name('users.edit');
+        Route::put('/users/{user}', [AdminUserController::class, 'update'])->name('users.update');
+        Route::delete('/users/{user}', [AdminUserController::class, 'destroy'])->name('users.destroy');
+
+        // Settings
+        Route::prefix('settings')->name('settings.')->group(function () {
+            Route::get('/smtp', [SmtpSettingsController::class, 'edit'])->name('smtp.edit');
+            Route::put('/smtp', [SmtpSettingsController::class, 'update'])->name('smtp.update');
+            Route::post('/smtp/test', [SmtpSettingsController::class, 'test'])->name('smtp.test');
+        });
+
+        // Audit Log (Admin only)
+        Route::get('/audit', [AuditController::class, 'index'])->name('audit.index');
+    });
 
 require __DIR__ . '/auth.php';

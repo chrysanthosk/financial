@@ -1,5 +1,11 @@
 import './bootstrap';
 
+// Bootstrap JS (dropdown/collapse). Must be loaded before AdminLTE.
+//import 'bootstrap';
+
+// Bootstrap JS (dropdown/collapse). Must be loaded before AdminLTE.
+import 'bootstrap/dist/js/bootstrap.bundle.min.js';
+
 import Alpine from 'alpinejs';
 window.Alpine = Alpine;
 Alpine.start();
@@ -33,27 +39,28 @@ import '@fortawesome/fontawesome-free/js/all.min.js';
     }
   }
 
- function applyTheme(theme) {
-   const navbar = document.querySelector('.main-header.navbar');
+  function applyTheme(theme) {
+    const navbar = document.querySelector('.main-header.navbar');
 
-   if (theme === 'dark') {
-     document.body.classList.add('dark-mode');
+    if (theme === 'dark') {
+      document.body.classList.add('dark-mode');
 
-     if (navbar) {
-       navbar.classList.remove('navbar-white', 'navbar-light');
-       navbar.classList.add('navbar-dark');
-     }
-   } else {
-     document.body.classList.remove('dark-mode');
+      if (navbar) {
+        navbar.classList.remove('navbar-white', 'navbar-light');
+        navbar.classList.add('navbar-dark');
+      }
+    } else {
+      document.body.classList.remove('dark-mode');
 
-     if (navbar) {
-       navbar.classList.remove('navbar-dark');
-       navbar.classList.add('navbar-white', 'navbar-light');
-     }
-   }
+      if (navbar) {
+        navbar.classList.remove('navbar-dark');
+        navbar.classList.add('navbar-white', 'navbar-light');
+      }
+    }
 
-   setIcon(theme);
- }
+    setIcon(theme);
+  }
+
   function getSavedTheme() {
     return localStorage.getItem(THEME_KEY) || 'light';
   }
@@ -62,13 +69,10 @@ import '@fortawesome/fontawesome-free/js/all.min.js';
     localStorage.setItem(THEME_KEY, theme);
   }
 
-  // Run after DOM is ready so the toggle button exists
   document.addEventListener('DOMContentLoaded', () => {
-    // Initial apply
     const initial = getSavedTheme();
     applyTheme(initial);
 
-    // Bind toggle button
     const btn = document.getElementById('themeToggleBtn');
     if (btn) {
       btn.addEventListener('click', async () => {
@@ -76,7 +80,6 @@ import '@fortawesome/fontawesome-free/js/all.min.js';
         saveTheme(next);
         applyTheme(next);
 
-        // Persist server-side (best-effort)
         const themeUrl = document.querySelector('meta[name="theme-update-url"]')?.getAttribute('content');
         const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
 
