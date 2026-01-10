@@ -17,6 +17,7 @@ class DatabaseSeeder extends Seeder
             PaymentMethodSeeder::class,
             ExpenseCategorySeeder::class,
             SmtpSettingSeeder::class,
+            SystemSettingSeeder::class,
         ]);
     }
 }

@@ -23,15 +23,12 @@
             color: rgba(0,0,0,.75);
             vertical-align: middle;
         }
-
-        /* When your theme toggler applies dark mode, AdminLTE commonly uses .dark-mode on body */
         body.dark-mode .badge-soon{
             border-color: rgba(255,255,255,.18);
             background: rgba(255,255,255,.12);
             color: rgba(255,255,255,.85);
         }
 
-        /* Make dropdown items readable in dark mode */
         body.dark-mode .dropdown-menu{
             background-color: #2b2b2b;
             border-color: rgba(255,255,255,.10);
@@ -52,13 +49,10 @@
 </head>
 
 @php
-    // Compute these once so we can safely show/hide menu items without empty dropdowns.
-    $isAdmin = auth()->check() && (auth()->user()->role ?? null) === 'admin';
-
-    $hasSmtp = \Illuminate\Support\Facades\Route::has('admin.settings.smtp.edit');
-    $hasAudit = \Illuminate\Support\Facades\Route::has('admin.audit.index');
-
-    $showSettingsDropdown = $isAdmin && ($hasSmtp || $hasAudit);
+  // Safe DB-backed branding (falls back to config/app.name if table not ready)
+  $system = \App\Models\SystemSetting::safeCurrent();
+  $brandHeader = $system?->header_name ?: config('app.name', 'Financial');
+  $brandFooter = $system?->footer_name ?: config('app.name', 'Financial');
 @endphp
 
 <body class="hold-transition layout-top-nav">
@@ -70,7 +64,7 @@
 
             <!-- Brand -->
             <a href="{{ route('dashboard') }}" class="navbar-brand">
-                <span class="brand-text fw-light">{{ config('app.name', 'Financial') }}</span>
+                <span class="brand-text fw-light">{{ $brandHeader }}</span>
             </a>
 
             <!-- Mobile toggle -->
@@ -112,7 +106,7 @@
                         </a>
                     </li>
 
-                    @if($isAdmin)
+                    @if(auth()->check() && (auth()->user()->role ?? null) === 'admin')
                         <li class="nav-item">
                             <a href="{{ route('admin.users.index') }}"
                                class="nav-link {{ request()->routeIs('admin.users.*') ? 'active' : '' }}">
@@ -121,40 +115,46 @@
                         </li>
 
                         {{-- Settings dropdown (Admin only) --}}
-                        @if($showSettingsDropdown)
-                            <li class="nav-item dropdown">
-                                <a class="nav-link dropdown-toggle {{ request()->routeIs('admin.settings.*') || request()->routeIs('admin.audit.*') ? 'active' : '' }}"
-                                   href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-                                    <i class="fas fa-cogs me-1"></i> Settings
-                                </a>
+                        <li class="nav-item dropdown">
+                            <a class="nav-link dropdown-toggle {{ request()->routeIs('admin.settings.*') || request()->routeIs('admin.audit.*') ? 'active' : '' }}"
+                               href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                <i class="fas fa-cogs me-1"></i> Settings
+                            </a>
 
-                                <ul class="dropdown-menu">
-                                    @if($hasSmtp)
-                                        <li>
-                                            <a href="{{ route('admin.settings.smtp.edit') }}" class="dropdown-item">
-                                                <i class="fas fa-envelope me-2"></i> SMTP
-                                            </a>
-                                        </li>
-                                    @endif
-
-                                    @if($hasAudit)
-                                        <li>
-                                            <a href="{{ route('admin.audit.index') }}" class="dropdown-item">
-                                                <i class="fas fa-clipboard-list me-2"></i> Audit Log
-                                            </a>
-                                        </li>
-                                    @endif
-
-                                    <li><hr class="dropdown-divider"></li>
-
+                            <ul class="dropdown-menu">
+                                @if(\Illuminate\Support\Facades\Route::has('admin.settings.smtp.edit'))
                                     <li>
-                                        <span class="dropdown-item-text text-muted small">
-                                            More settings coming soon
-                                        </span>
+                                        <a href="{{ route('admin.settings.smtp.edit') }}" class="dropdown-item">
+                                            <i class="fas fa-envelope me-2"></i> SMTP
+                                        </a>
                                     </li>
-                                </ul>
-                            </li>
-                        @endif
+                                @endif
+
+                                @if(\Illuminate\Support\Facades\Route::has('admin.settings.config.index'))
+                                    <li>
+                                        <a href="{{ route('admin.settings.config.index') }}" class="dropdown-item">
+                                            <i class="fas fa-sliders-h me-2"></i> Configuration
+                                        </a>
+                                    </li>
+                                @endif
+
+                                @if(\Illuminate\Support\Facades\Route::has('admin.audit.index'))
+                                    <li>
+                                        <a href="{{ route('admin.audit.index') }}" class="dropdown-item">
+                                            <i class="fas fa-clipboard-list me-2"></i> Audit Log
+                                        </a>
+                                    </li>
+                                @endif
+
+                                <li><hr class="dropdown-divider"></li>
+
+                                <li>
+                                    <span class="dropdown-item-text text-muted small">
+                                        More settings coming soon
+                                    </span>
+                                </li>
+                            </ul>
+                        </li>
                     @endif
 
                 </ul>
@@ -175,12 +175,7 @@
                     <a class="nav-link dropdown-toggle" href="#"
                        data-bs-toggle="dropdown" role="button" aria-expanded="false">
                         <i class="far fa-user"></i>
-                        @php
-                          $u = auth()->user();
-                          $displayName = trim(($u->first_name ?? '') . ' ' . ($u->last_name ?? ''));
-                          if ($displayName === '') $displayName = $u->email ?? 'User';
-                        @endphp
-                        <span class="ms-1">{{ $displayName }}</span>
+                        <span class="ms-1">{{ auth()->user()->name ?? 'User' }}</span>
                     </a>
 
                     <ul class="dropdown-menu dropdown-menu-end">
@@ -244,7 +239,7 @@
             <div class="float-end d-none d-sm-inline">
                 v0.1
             </div>
-            <strong>&copy; {{ date('Y') }} {{ config('app.name', 'Financial') }}</strong>
+            <strong>&copy; {{ date('Y') }} {{ $brandFooter }}</strong>
         </div>
     </footer>
 
