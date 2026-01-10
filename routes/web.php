@@ -15,6 +15,8 @@ use App\Http\Controllers\Admin\ConfigurationController;
 use App\Http\Controllers\Admin\AuditLogController;
 use App\Http\Controllers\BonusController;
 
+use App\Http\Controllers\DashboardController;
+
 
 /*
 |--------------------------------------------------------------------------
@@ -32,9 +34,9 @@ Route::get('/', function () {
 | Dashboard
 |--------------------------------------------------------------------------
 */
-Route::get('/dashboard', function () {
-    return view('dashboard');
-})->middleware(['auth', 'verified'])->name('dashboard');
+Route::get('/dashboard', [DashboardController::class, 'index'])
+    ->middleware(['auth'])
+    ->name('dashboard');
 
 /*
 |--------------------------------------------------------------------------
