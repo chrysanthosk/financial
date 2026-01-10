@@ -100,6 +100,13 @@
                     </li>
 
                     <li class="nav-item">
+                        <a href="{{ route('bonus.index') }}"
+                           class="nav-link {{ request()->routeIs('bonus.*') ? 'active' : '' }}">
+                            <i class="fas fa-percentage me-1"></i> Bonus
+                        </a>
+                    </li>
+
+                    <li class="nav-item">
                         <a href="javascript:void(0)" class="nav-link disabled" tabindex="-1" aria-disabled="true">
                             <i class="fas fa-university me-1"></i> Accounts
                             <span class="badge-soon ms-1">Soon</span>
