@@ -9,7 +9,57 @@
     <title>@yield('title', config('app.name'))</title>
 
     @vite(['resources/css/app.css', 'resources/js/app.js'])
+
+    {{-- Small UI fixes + dark-mode safe "Soon" badge --}}
+    <style>
+        .badge-soon{
+            display:inline-block;
+            font-size:.75rem;
+            font-weight:600;
+            padding:.25em .45em;
+            border-radius:.35rem;
+            border:1px solid rgba(0,0,0,.15);
+            background: rgba(0,0,0,.06);
+            color: rgba(0,0,0,.75);
+            vertical-align: middle;
+        }
+
+        /* When your theme toggler applies dark mode, AdminLTE commonly uses .dark-mode on body */
+        body.dark-mode .badge-soon{
+            border-color: rgba(255,255,255,.18);
+            background: rgba(255,255,255,.12);
+            color: rgba(255,255,255,.85);
+        }
+
+        /* Make dropdown items readable in dark mode */
+        body.dark-mode .dropdown-menu{
+            background-color: #2b2b2b;
+            border-color: rgba(255,255,255,.10);
+        }
+        body.dark-mode .dropdown-item,
+        body.dark-mode .dropdown-item-text{
+            color: rgba(255,255,255,.85);
+        }
+        body.dark-mode .dropdown-item:hover,
+        body.dark-mode .dropdown-item:focus{
+            background-color: rgba(255,255,255,.08);
+            color: #fff;
+        }
+        body.dark-mode .dropdown-divider{
+            border-top-color: rgba(255,255,255,.12);
+        }
+    </style>
 </head>
+
+@php
+    // Compute these once so we can safely show/hide menu items without empty dropdowns.
+    $isAdmin = auth()->check() && (auth()->user()->role ?? null) === 'admin';
+
+    $hasSmtp = \Illuminate\Support\Facades\Route::has('admin.settings.smtp.edit');
+    $hasAudit = \Illuminate\Support\Facades\Route::has('admin.audit.index');
+
+    $showSettingsDropdown = $isAdmin && ($hasSmtp || $hasAudit);
+@endphp
 
 <body class="hold-transition layout-top-nav">
 <div class="wrapper">
@@ -20,11 +70,12 @@
 
             <!-- Brand -->
             <a href="{{ route('dashboard') }}" class="navbar-brand">
-                <span class="brand-text font-weight-light">{{ config('app.name', 'Financial') }}</span>
+                <span class="brand-text fw-light">{{ config('app.name', 'Financial') }}</span>
             </a>
 
             <!-- Mobile toggle -->
-            <button class="navbar-toggler order-1" type="button" data-toggle="collapse" data-target="#topnav-collapse"
+            <button class="navbar-toggler order-1" type="button"
+                    data-bs-toggle="collapse" data-bs-target="#topnav-collapse"
                     aria-controls="topnav-collapse" aria-expanded="false" aria-label="Toggle navigation">
                 <span class="navbar-toggler-icon"></span>
             </button>
@@ -32,75 +83,119 @@
             <!-- Nav links -->
             <div class="collapse navbar-collapse order-3" id="topnav-collapse">
                 <ul class="navbar-nav">
+
                     <li class="nav-item">
                         <a href="{{ route('dashboard') }}"
                            class="nav-link {{ request()->routeIs('dashboard') ? 'active' : '' }}">
-                            <i class="fas fa-tachometer-alt mr-1"></i> Dashboard
+                            <i class="fas fa-tachometer-alt me-1"></i> Dashboard
                         </a>
                     </li>
 
-                   <li class="nav-item">
-                       <a href="{{ route('income.index') }}"
-                          class="nav-link {{ request()->routeIs('income.*') ? 'active' : '' }} {{ request()->is('income*') ? 'active' : '' }}">
-                           <i class="fas fa-coins mr-1"></i> Income
-                       </a>
-                   </li>
+                    <li class="nav-item">
+                        <a href="{{ route('income.index') }}"
+                           class="nav-link {{ request()->routeIs('income.*') ? 'active' : '' }} {{ request()->is('income*') ? 'active' : '' }}">
+                            <i class="fas fa-coins me-1"></i> Income
+                        </a>
+                    </li>
 
                     <li class="nav-item">
-                      <a href="{{ route('expenses.index') }}" class="nav-link {{ request()->is('expenses*') ? 'active' : '' }}">
-                        <i class="fas fa-file-invoice-dollar mr-1"></i> Expenses
-                      </a>
+                        <a href="{{ route('expenses.index') }}"
+                           class="nav-link {{ request()->routeIs('expenses.*') ? 'active' : '' }}">
+                            <i class="fas fa-file-invoice-dollar me-1"></i> Expenses
+                        </a>
                     </li>
 
                     <li class="nav-item">
                         <a href="javascript:void(0)" class="nav-link disabled" tabindex="-1" aria-disabled="true">
-                            <i class="fas fa-university mr-1"></i> Accounts
-                            <span class="badge badge-light text-dark ml-1">Soon</span>
+                            <i class="fas fa-university me-1"></i> Accounts
+                            <span class="badge-soon ms-1">Soon</span>
                         </a>
                     </li>
 
-                    @if(auth()->check() && (auth()->user()->role ?? null) === 'admin')
+                    @if($isAdmin)
                         <li class="nav-item">
                             <a href="{{ route('admin.users.index') }}"
                                class="nav-link {{ request()->routeIs('admin.users.*') ? 'active' : '' }}">
-                                <i class="fas fa-users mr-1"></i> Users
+                                <i class="fas fa-users me-1"></i> Users
                             </a>
                         </li>
+
+                        {{-- Settings dropdown (Admin only) --}}
+                        @if($showSettingsDropdown)
+                            <li class="nav-item dropdown">
+                                <a class="nav-link dropdown-toggle {{ request()->routeIs('admin.settings.*') || request()->routeIs('admin.audit.*') ? 'active' : '' }}"
+                                   href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                    <i class="fas fa-cogs me-1"></i> Settings
+                                </a>
+
+                                <ul class="dropdown-menu">
+                                    @if($hasSmtp)
+                                        <li>
+                                            <a href="{{ route('admin.settings.smtp.edit') }}" class="dropdown-item">
+                                                <i class="fas fa-envelope me-2"></i> SMTP
+                                            </a>
+                                        </li>
+                                    @endif
+
+                                    @if($hasAudit)
+                                        <li>
+                                            <a href="{{ route('admin.audit.index') }}" class="dropdown-item">
+                                                <i class="fas fa-clipboard-list me-2"></i> Audit Log
+                                            </a>
+                                        </li>
+                                    @endif
+
+                                    <li><hr class="dropdown-divider"></li>
+
+                                    <li>
+                                        <span class="dropdown-item-text text-muted small">
+                                            More settings coming soon
+                                        </span>
+                                    </li>
+                                </ul>
+                            </li>
+                        @endif
                     @endif
+
                 </ul>
             </div>
 
             <!-- Right navbar links -->
-            <ul class="navbar-nav order-1 order-md-3 navbar-no-expand ml-auto">
+            <ul class="navbar-nav order-1 order-md-3 navbar-no-expand ms-auto">
 
                 <!-- Theme toggle -->
                 <li class="nav-item">
-                    <button id="themeToggleBtn" type="button" class="btn btn-sm btn-outline-secondary mr-2" title="Toggle theme">
+                    <button id="themeToggleBtn" type="button" class="btn btn-sm btn-outline-secondary me-2" title="Toggle theme">
                         <i id="themeToggleIcon" class="fas fa-moon"></i>
                     </button>
                 </li>
 
                 <!-- User dropdown -->
                 <li class="nav-item dropdown">
-                    <a class="nav-link" data-toggle="dropdown" href="#" role="button" aria-haspopup="true" aria-expanded="false">
+                    <a class="nav-link dropdown-toggle" href="#"
+                       data-bs-toggle="dropdown" role="button" aria-expanded="false">
                         <i class="far fa-user"></i>
-                        <span class="ml-1">{{ auth()->user()->name ?? 'User' }}</span>
+                        <span class="ms-1">{{ auth()->user()->name ?? 'User' }}</span>
                     </a>
 
-                    <div class="dropdown-menu dropdown-menu-right">
-                        <a href="{{ route('profile.edit') }}" class="dropdown-item">
-                            <i class="fas fa-user-cog mr-2"></i> Profile
-                        </a>
+                    <ul class="dropdown-menu dropdown-menu-end">
+                        <li>
+                            <a href="{{ route('profile.edit') }}" class="dropdown-item">
+                                <i class="fas fa-user-cog me-2"></i> Profile
+                            </a>
+                        </li>
 
-                        <div class="dropdown-divider"></div>
+                        <li><hr class="dropdown-divider"></li>
 
-                        <form method="POST" action="{{ route('logout') }}" class="m-0">
-                            @csrf
-                            <button type="submit" class="dropdown-item">
-                                <i class="fas fa-sign-out-alt mr-2"></i> Logout
-                            </button>
-                        </form>
-                    </div>
+                        <li>
+                            <form method="POST" action="{{ route('logout') }}" class="m-0">
+                                @csrf
+                                <button type="submit" class="dropdown-item">
+                                    <i class="fas fa-sign-out-alt me-2"></i> Logout
+                                </button>
+                            </form>
+                        </li>
+                    </ul>
                 </li>
             </ul>
 
@@ -127,8 +222,9 @@
         <div class="content">
             <div class="container pb-4">
 
+                {{-- Flash status (keep it here ONLY to avoid duplicates) --}}
                 @if (session('status'))
-                    <div class="alert alert-success mt-2">{{ session('status') }}</div>
+                    <div class="alert alert-success mt-2 mb-3">{{ session('status') }}</div>
                 @endif
 
                 @yield('content')
@@ -140,7 +236,7 @@
     <!-- Footer -->
     <footer class="main-footer">
         <div class="container">
-            <div class="float-right d-none d-sm-inline">
+            <div class="float-end d-none d-sm-inline">
                 v0.1
             </div>
             <strong>&copy; {{ date('Y') }} {{ config('app.name', 'Financial') }}</strong>
@@ -148,6 +244,5 @@
     </footer>
 
 </div>
-
 </body>
 </html>

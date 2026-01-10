@@ -177,3 +177,12 @@ body.dark-mode .role-badge-user {
   line-height: 1.2;
   border-radius: .2rem;
 }
+
+.badge-soon {
+  background: rgba(0,0,0,.08);
+  color: #111;
+}
+body.dark-mode .badge-soon {
+  background: rgba(255,255,255,.15);
+  color: #fff;
+}

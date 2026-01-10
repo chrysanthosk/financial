@@ -1,0 +1,227 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use App\Support\Audit;
+use BaconQrCode\Renderer\ImageRenderer;
+use BaconQrCode\Renderer\Image\SvgImageBackEnd;
+use BaconQrCode\Renderer\RendererStyle\RendererStyle;
+use BaconQrCode\Writer;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Crypt;
+use Illuminate\Support\Facades\Redirect;
+use Illuminate\Support\Str;
+
+class TwoFactorController extends Controller
+{
+    public function show(Request $request)
+    {
+        $user = $request->user();
+
+        return view('profile.2fa', [
+            'user' => $user,
+            'qrPngDataUri' => null, // keep name for blade compatibility
+            'secret' => null,
+        ]);
+    }
+
+    /**
+     * Generate NEW secret and return QR (data URI) for confirmation.
+     */
+    public function enable(Request $request)
+    {
+        $user = $request->user();
+
+        $secret = $this->generateBase32Secret(24);
+
+        // Store temporarily until confirmed
+        $user->two_factor_secret = Crypt::encryptString($secret);
+        $user->two_factor_enabled = false;
+        $user->save();
+
+        $issuer = config('app.name', 'Financial');
+        $label = $user->email ?: ('user-' . $user->id);
+
+        $otpauth = sprintf(
+            'otpauth://totp/%s:%s?secret=%s&issuer=%s',
+            rawurlencode($issuer),
+            rawurlencode($label),
+            $secret,
+            rawurlencode($issuer)
+        );
+
+        if (!class_exists(Writer::class)) {
+            return Redirect::route('profile.2fa.show')
+                ->with('status', 'Missing QR library. Run: composer require bacon/bacon-qr-code:^3.0');
+        }
+
+        $qrDataUri = $this->makeQrSvgDataUri($otpauth, 220);
+
+        Audit::log(
+            action: 'security.2fa_qr_generated',
+            category: 'security',
+            request: $request,
+            userId: $user->id,
+            targetType: 'User',
+            targetId: (string)$user->id
+        );
+
+        return view('profile.2fa', [
+            'user' => $user,
+            'qrPngDataUri' => $qrDataUri, // keep variable name used by your blade
+            'secret' => $secret,
+        ]);
+    }
+
+    /**
+     * Confirm code and enable 2FA + generate recovery codes.
+     */
+    public function confirm(Request $request)
+    {
+        $user = $request->user();
+
+        $request->validate([
+            'code' => ['required', 'digits:6'],
+        ]);
+
+        if (!$user->two_factor_secret) {
+            return Redirect::route('profile.2fa.show')->with('status', 'Please generate a QR first.');
+        }
+
+        $secret = Crypt::decryptString($user->two_factor_secret);
+
+        if (!class_exists(\OTPHP\TOTP::class)) {
+            return Redirect::route('profile.2fa.show')
+                ->with('status', 'Missing OTP library. Run: composer require spomky-labs/otphp');
+        }
+
+        $issuer = config('app.name', 'Financial');
+        $label = $user->email ?: ('user-' . $user->id);
+
+        $totp = \OTPHP\TOTP::create($secret);
+        $totp->setIssuer($issuer);
+        $totp->setLabel($label);
+
+        // Allow +/- 30s drift
+        $code = $request->input('code');
+        $now = time();
+
+        $valid =
+            $totp->verify($code, $now) ||
+            $totp->verify($code, $now - 30) ||
+            $totp->verify($code, $now + 30);
+
+        if (!$valid) {
+            Audit::log(
+                action: 'security.2fa_confirm_failed',
+                category: 'security',
+                request: $request,
+                userId: $user->id,
+                targetType: 'User',
+                targetId: (string)$user->id
+            );
+
+            return Redirect::back()->withErrors(['code' => 'Invalid code. Please try again.']);
+        }
+
+        $user->two_factor_enabled = true;
+
+        // Generate recovery codes
+        $recoveryCodes = [];
+        for ($i = 0; $i < 10; $i++) {
+            $recoveryCodes[] = strtoupper(Str::random(10)) . '-' . strtoupper(Str::random(10));
+        }
+        $user->two_factor_recovery_codes = Crypt::encryptString(json_encode($recoveryCodes));
+        $user->save();
+
+        Audit::log(
+            action: 'security.2fa_enabled',
+            category: 'security',
+            request: $request,
+            userId: $user->id,
+            targetType: 'User',
+            targetId: (string)$user->id
+        );
+
+        return Redirect::route('profile.2fa.show')->with('status', '2FA enabled. Save your recovery codes.');
+    }
+
+    public function disable(Request $request)
+    {
+        $user = $request->user();
+
+        $request->validate([
+            'current_password' => ['required', 'current_password'],
+        ]);
+
+        $user->two_factor_enabled = false;
+        $user->two_factor_secret = null;
+        $user->two_factor_recovery_codes = null;
+        $user->save();
+
+        Audit::log(
+            action: 'security.2fa_disabled',
+            category: 'security',
+            request: $request,
+            userId: $user->id,
+            targetType: 'User',
+            targetId: (string)$user->id
+        );
+
+        return Redirect::route('profile.2fa.show')->with('status', '2FA disabled.');
+    }
+
+    public function regenerateRecoveryCodes(Request $request)
+    {
+        $user = $request->user();
+
+        if (!$user->two_factor_enabled || !$user->two_factor_secret) {
+            return Redirect::route('profile.2fa.show')->with('status', 'Enable 2FA first.');
+        }
+
+        $recoveryCodes = [];
+        for ($i = 0; $i < 10; $i++) {
+            $recoveryCodes[] = strtoupper(Str::random(10)) . '-' . strtoupper(Str::random(10));
+        }
+
+        $user->two_factor_recovery_codes = Crypt::encryptString(json_encode($recoveryCodes));
+        $user->save();
+
+        Audit::log(
+            action: 'security.2fa_recovery_regenerated',
+            category: 'security',
+            request: $request,
+            userId: $user->id,
+            targetType: 'User',
+            targetId: (string)$user->id
+        );
+
+        return Redirect::route('profile.2fa.show')->with('status', 'Recovery codes regenerated. Save the new codes.');
+    }
+
+    /**
+     * SVG QR as data URI (reliable, no external assets).
+     */
+    private function makeQrSvgDataUri(string $text, int $size = 220): string
+    {
+        $renderer = new ImageRenderer(
+            new RendererStyle($size),
+            new SvgImageBackEnd()
+        );
+
+        $writer = new Writer($renderer);
+        $svg = $writer->writeString($text);
+
+        return 'data:image/svg+xml;base64,' . base64_encode($svg);
+    }
+
+    private function generateBase32Secret(int $length = 24): string
+    {
+        $alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+        $secret = '';
+        for ($i = 0; $i < $length; $i++) {
+            $secret .= $alphabet[random_int(0, strlen($alphabet) - 1)];
+        }
+        return $secret;
+    }
+}

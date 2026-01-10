@@ -40,6 +40,29 @@ artisan() {
   run_as_app "cd '$APP_DIR' && ${PHP_BIN} artisan $*"
 }
 
+# Check if a PHP class exists (autoload + app bootstrap)
+class_exists_in_app() {
+  local fqcn="$1"
+  run_as_app "cd '$APP_DIR' && ${PHP_BIN} -r \"require 'vendor/autoload.php'; \$app=require 'bootstrap/app.php'; \$app->make(Illuminate\\\\Contracts\\\\Console\\\\Kernel::class)->bootstrap(); echo class_exists('${fqcn}') ? '1' : '0';\""
+}
+
+seed_if_exists() {
+  local fqcn="$1"
+  local label="$2"
+
+  if [[ ! -d "$APP_DIR/vendor" ]]; then
+    warn "vendor/ not present yet; cannot check ${label} seeder."
+    return 0
+  fi
+
+  if [[ "$(class_exists_in_app "$fqcn")" == "1" ]]; then
+    log "Running ${label} seeder (idempotent) ..."
+    artisan "db:seed --class=${fqcn} --force"
+  else
+    warn "${label} seeder not found (${fqcn}). Skipping."
+  fi
+}
+
 #############################################
 # Main
 #############################################
@@ -52,32 +75,27 @@ if [[ ! -d "$APP_DIR/.git" ]]; then
   exit 1
 fi
 
-# Ensure backup dir exists and is protected
 mkdir -p "$BACKUP_DIR"
 chmod 700 "$BACKUP_DIR" || true
 
-# Require .env to exist BEFORE deploy (deploy must not generate secrets)
 if [[ ! -f "$APP_DIR/.env" ]]; then
   err ".env not found at ${APP_DIR}/.env"
   err "Create it once using install.sh before running deploy."
   exit 1
 fi
 
-# 0) Backup .env (outside repo)
 TS="$(date +%F_%H%M%S)"
 ENV_BAK="${BACKUP_DIR}/.env.${TS}.bak"
 log "Backing up .env -> ${ENV_BAK} ..."
 cp -a "$APP_DIR/.env" "$ENV_BAK"
 chmod 600 "$ENV_BAK" || true
 
-# 0.1) Ensure remote fetch refspec includes ALL branches (prevents old main-only rules)
 log "Ensuring git remote fetch refspec includes all branches ..."
 run_as_app "cd '$APP_DIR' && \
   (git config --get-all remote.origin.fetch | grep -q 'refs/heads/\\*:refs/remotes/origin/\\*' || \
    (git config --unset-all remote.origin.fetch >/dev/null 2>&1 || true; \
     git config --add remote.origin.fetch '+refs/heads/*:refs/remotes/origin/*'))"
 
-# 1) Fetch + hard reset to origin/master
 log "Fetching origin (prune) ..."
 run_as_app "cd '$APP_DIR' && git fetch --prune origin"
 
@@ -92,17 +110,14 @@ log "Resetting working tree to origin/${BRANCH} ..."
 run_as_app "cd '$APP_DIR' && git reset --hard 'origin/${BRANCH}'"
 run_as_app "cd '$APP_DIR' && git checkout -B '${BRANCH}' 'origin/${BRANCH}'"
 
-# Remove legacy repo backup folder if it exists (root-owned leftovers)
 if [[ -d "$APP_DIR/_deploy_backups" ]]; then
   log "Removing legacy $APP_DIR/_deploy_backups ..."
   rm -rf "$APP_DIR/_deploy_backups"
 fi
 
-# Clean untracked files (do NOT use -x; keep ignored like .env)
 log "Cleaning untracked files (git clean -fd) ..."
 run_as_app "cd '$APP_DIR' && git clean -fd -e '.env'"
 
-# Restore .env if something removed it (extra safety)
 if [[ ! -f "$APP_DIR/.env" ]]; then
   warn ".env missing after git operations — restoring from ${ENV_BAK} ..."
   cp -a "$ENV_BAK" "$APP_DIR/.env"
@@ -110,22 +125,18 @@ if [[ ! -f "$APP_DIR/.env" ]]; then
   chmod 600 "$APP_DIR/.env" || true
 fi
 
-# Safety: refuse deploy if composer.lock missing
 if [[ ! -f "$APP_DIR/composer.lock" ]]; then
   err "composer.lock missing. Refusing to deploy without a lockfile."
   exit 1
 fi
 
-# 2) Clean build artifacts (prevents broken vendor/node/build state)
 log "Removing old vendor/node/build/cache artifacts ..."
 run_as_app "cd '$APP_DIR' && rm -rf vendor node_modules public/build bootstrap/cache/*.php"
 
-# 3) Composer install (NO UPDATE) based on composer.lock
 log "Installing PHP dependencies (composer install --no-dev) ..."
 run_as_app "cd '$APP_DIR' && ${COMPOSER_BIN} clear-cache >/dev/null 2>&1 || true"
 run_as_app "cd '$APP_DIR' && COMPOSER_ALLOW_SUPERUSER=1 ${COMPOSER_BIN} install --no-dev --prefer-dist --optimize-autoloader --no-interaction"
 
-# 4) npm ci && npm run build
 if run_as_app "command -v ${NPM_BIN} >/dev/null 2>&1"; then
   log "Installing Node dependencies ..."
   if [[ -f "$APP_DIR/package-lock.json" ]]; then
@@ -141,28 +152,38 @@ else
   warn "npm not found. Skipping frontend build."
 fi
 
-# 5) Migrate
 log "Running migrations ..."
 artisan "migrate --force"
 
-# 6) Seed ALL defaults (idempotent seeders = safe every deploy)
-# This is the most reliable approach and avoids quoting/class_exists problems.
-log "Running database seeders (safe / idempotent) ..."
+log "Running DatabaseSeeder (php artisan db:seed --force) ..."
 artisan "db:seed --force"
 
-# 7) optimize:clear && config:cache (and route cache)
-log "Clearing & caching Laravel config/routes ..."
-artisan "optimize:clear"
-artisan "config:cache"
-artisan "route:cache"
+# Enforce critical defaults every deploy (prevents missing settings in prod)
+seed_if_exists "Database\\Seeders\\SmtpSettingSeeder"   "SmtpSettingSeeder"
+seed_if_exists "Database\\Seeders\\IncomeSourceSeeder"  "IncomeSourceSeeder"
 
-# 8) Permissions (storage + bootstrap/cache writable by www-data)
+log "Clearing optimized caches ..."
+artisan "optimize:clear"
+
+log "Caching config ..."
+artisan "config:cache"
+
+# Route cache FAILS if you have any route closures.
+# We'll try it; if it fails, we fall back safely.
+log "Caching routes (best-effort) ..."
+if ! artisan "route:cache"; then
+  warn "route:cache failed (likely due to closure routes). Falling back to route:clear."
+  artisan "route:clear" || true
+fi
+
+log "Caching views (safe) ..."
+artisan "view:cache" || true
+
 log "Fixing permissions (storage + bootstrap/cache) ..."
 chown -R "$APP_USER":www-data "$APP_DIR/storage" "$APP_DIR/bootstrap/cache" || true
 find "$APP_DIR/storage" "$APP_DIR/bootstrap/cache" -type d -exec chmod 2775 {} \; || true
 find "$APP_DIR/storage" "$APP_DIR/bootstrap/cache" -type f -exec chmod 664 {} \; || true
 
-# 9) Restart php-fpm, reload nginx
 log "Restarting PHP-FPM + reloading Nginx ..."
 systemctl restart "$PHP_FPM_SERVICE"
 systemctl reload "$NGINX_SERVICE"
