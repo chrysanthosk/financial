@@ -11,7 +11,9 @@ use App\Http\Controllers\TwoFactorController;
 
 use App\Http\Controllers\Admin\UserController as AdminUserController;
 use App\Http\Controllers\Admin\SmtpSettingsController;
-use App\Http\Controllers\Admin\AuditController;
+use App\Http\Controllers\Admin\ConfigurationController;
+use App\Http\Controllers\Admin\AuditLogController;
+
 
 /*
 |--------------------------------------------------------------------------
@@ -40,7 +42,9 @@ Route::get('/dashboard', function () {
 */
 Route::middleware('auth')->group(function () {
 
-    // Profile
+    /*
+    | Profile
+    */
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
@@ -56,23 +60,36 @@ Route::middleware('auth')->group(function () {
     Route::get('/profile/email/confirm/{token}', [EmailChangeController::class, 'confirm'])
         ->name('profile.email.confirm');
 
-    // 2FA
-    Route::get('/profile/2fa', [TwoFactorController::class, 'show'])->name('profile.2fa.show');
-    Route::post('/profile/2fa/enable', [TwoFactorController::class, 'enable'])->name('profile.2fa.enable');
-    Route::post('/profile/2fa/confirm', [TwoFactorController::class, 'confirm'])->name('profile.2fa.confirm');
-    Route::post('/profile/2fa/disable', [TwoFactorController::class, 'disable'])->name('profile.2fa.disable');
+    // 2FA (TOTP)
+    Route::get('/profile/2fa', [TwoFactorController::class, 'show'])
+        ->name('profile.2fa.show');
+
+    Route::post('/profile/2fa/enable', [TwoFactorController::class, 'enable'])
+        ->name('profile.2fa.enable');
+
+    Route::post('/profile/2fa/confirm', [TwoFactorController::class, 'confirm'])
+        ->name('profile.2fa.confirm');
+
+    Route::post('/profile/2fa/disable', [TwoFactorController::class, 'disable'])
+        ->name('profile.2fa.disable');
 
     // Recovery codes regenerate
     Route::post('/profile/2fa/recovery/regenerate', [TwoFactorController::class, 'regenerateRecoveryCodes'])
         ->name('profile.2fa.recovery.regenerate');
 
-    // Theme
+    /*
+    | Theme
+    */
     Route::post('/theme', [ThemeController::class, 'update'])->name('theme.update');
 
-    // Income
+    /*
+    | Income
+    */
     Route::resource('income', IncomeController::class)->except(['show']);
 
-    // Expenses
+    /*
+    | Expenses
+    */
     Route::resource('expenses', ExpenseController::class)->except(['show']);
 });
 
@@ -86,7 +103,9 @@ Route::middleware(['auth', 'admin'])
     ->name('admin.')
     ->group(function () {
 
-        // Users
+        /*
+        | Users
+        */
         Route::get('/users', [AdminUserController::class, 'index'])->name('users.index');
         Route::get('/users/create', [AdminUserController::class, 'create'])->name('users.create');
         Route::post('/users', [AdminUserController::class, 'store'])->name('users.store');
@@ -94,15 +113,39 @@ Route::middleware(['auth', 'admin'])
         Route::put('/users/{user}', [AdminUserController::class, 'update'])->name('users.update');
         Route::delete('/users/{user}', [AdminUserController::class, 'destroy'])->name('users.destroy');
 
-        // Settings
-        Route::prefix('settings')->name('settings.')->group(function () {
+        /*
+        | Settings
+        */
+        Route::prefix('settings')->name('settings.')->group(function ()
+        {
+
+            // SMTP Settings
             Route::get('/smtp', [SmtpSettingsController::class, 'edit'])->name('smtp.edit');
             Route::put('/smtp', [SmtpSettingsController::class, 'update'])->name('smtp.update');
             Route::post('/smtp/test', [SmtpSettingsController::class, 'test'])->name('smtp.test');
-        });
 
-        // Audit Log (Admin only)
-        Route::get('/audit', [AuditController::class, 'index'])->name('audit.index');
+            // Configuration (Income Sources / Expense Categories / Payment Methods)
+            Route::get('/configuration', [ConfigurationController::class, 'index'])->name('config.index');
+
+            // Income Sources
+            Route::post('/configuration/income-sources', [ConfigurationController::class, 'storeIncomeSource'])->name('config.income_sources.store');
+            Route::put('/configuration/income-sources/{incomeSource}', [ConfigurationController::class, 'updateIncomeSource'])->name('config.income_sources.update');
+            Route::delete('/configuration/income-sources/{incomeSource}', [ConfigurationController::class, 'destroyIncomeSource'])->name('config.income_sources.destroy');
+
+            // Expense Categories
+            Route::post('/configuration/expense-categories', [ConfigurationController::class, 'storeExpenseCategory'])->name('config.expense_categories.store');
+            Route::put('/configuration/expense-categories/{expenseCategory}', [ConfigurationController::class, 'updateExpenseCategory'])->name('config.expense_categories.update');
+            Route::delete('/configuration/expense-categories/{expenseCategory}', [ConfigurationController::class, 'destroyExpenseCategory'])->name('config.expense_categories.destroy');
+
+            // Payment Methods
+            Route::post('/configuration/payment-methods', [ConfigurationController::class, 'storePaymentMethod'])->name('config.payment_methods.store');
+            Route::put('/configuration/payment-methods/{paymentMethod}', [ConfigurationController::class, 'updatePaymentMethod'])->name('config.payment_methods.update');
+            Route::delete('/configuration/payment-methods/{paymentMethod}', [ConfigurationController::class, 'destroyPaymentMethod'])->name('config.payment_methods.destroy');
+
+            Route::put('/configuration/system', [ConfigurationController::class, 'updateSystem'])
+                ->name('config.system.update');
+        });
+        Route::get('/audit', [AuditLogController::class, 'index'])->name('audit.index');
     });
 
 require __DIR__ . '/auth.php';
