@@ -2,68 +2,82 @@
 
 @section('title', 'Edit User')
 
-@section('content-header')
-<div class="d-flex justify-content-between align-items-center">
-    <h1 class="m-0">Edit User</h1>
-    <a href="{{ route('admin.users.index') }}" class="btn btn-outline-secondary">
-        <i class="fas fa-arrow-left mr-1"></i> Back
-    </a>
-</div>
-@endsection
-
 @section('content')
-<div class="card">
+<div class="container-fluid">
+
+  <div class="d-flex align-items-center justify-content-between mb-3">
+    <h1 class="h3 mb-0">Edit User</h1>
+    <a href="{{ route('admin.users.index') }}" class="btn btn-outline-secondary">
+      <i class="fas fa-arrow-left me-2"></i> Back
+    </a>
+  </div>
+
+  @if ($errors->any())
+    <div class="alert alert-danger">
+      Please fix the errors below.
+    </div>
+  @endif
+
+  <div class="card">
     <div class="card-header">
-        <h3 class="card-title">User Details</h3>
+      <strong>User Details</strong>
     </div>
 
-    <form method="POST" action="{{ route('admin.users.update', $user) }}">
+    <div class="card-body">
+      <form method="POST" action="{{ route('admin.users.update', $user) }}">
         @csrf
         @method('PUT')
 
-        <div class="card-body">
+        <div class="row">
+          <div class="col-md-6 mb-3">
+            <label class="form-label">First Name</label>
+            <input type="text" name="first_name" class="form-control"
+                   value="{{ old('first_name', $user->first_name) }}">
+            @error('first_name') <div class="text-danger small">{{ $message }}</div> @enderror
+          </div>
 
-            <div class="form-group">
-                <label>Name</label>
-                <input name="name" value="{{ old('name', $user->name) }}" class="form-control" required>
-                @error('name') <small class="text-danger">{{ $message }}</small> @enderror
-            </div>
+          <div class="col-md-6 mb-3">
+            <label class="form-label">Last Name</label>
+            <input type="text" name="last_name" class="form-control"
+                   value="{{ old('last_name', $user->last_name) }}">
+            @error('last_name') <div class="text-danger small">{{ $message }}</div> @enderror
+          </div>
 
-            <div class="form-group">
-                <label>Email</label>
-                <input name="email" type="email" value="{{ old('email', $user->email) }}" class="form-control" required>
-                @error('email') <small class="text-danger">{{ $message }}</small> @enderror
-            </div>
+          <div class="col-md-8 mb-3">
+            <label class="form-label">Email</label>
+            <input type="email" name="email" class="form-control"
+                   value="{{ old('email', $user->email) }}" required>
+            @error('email') <div class="text-danger small">{{ $message }}</div> @enderror
+          </div>
 
-            <div class="form-group">
-                <label>Role</label>
-                <select name="role" class="form-control" required>
-                    <option value="user" {{ old('role', $user->role) === 'user' ? 'selected' : '' }}>User</option>
-                    <option value="admin" {{ old('role', $user->role) === 'admin' ? 'selected' : '' }}>Admin</option>
-                </select>
-                @error('role') <small class="text-danger">{{ $message }}</small> @enderror
-            </div>
+          <div class="col-md-4 mb-3">
+            <label class="form-label">Role</label>
+            <select name="role" class="form-control" required>
+              <option value="user" @selected(old('role', $user->role) === 'user')>User</option>
+              <option value="admin" @selected(old('role', $user->role) === 'admin')>Admin</option>
+            </select>
+            @error('role') <div class="text-danger small">{{ $message }}</div> @enderror
+          </div>
 
-            <hr>
+          <div class="col-md-6 mb-3">
+            <label class="form-label">New Password (optional)</label>
+            <input type="password" name="password" class="form-control" autocomplete="new-password">
+            <div class="text-muted small mt-1">Leave blank to keep current password.</div>
+            @error('password') <div class="text-danger small">{{ $message }}</div> @enderror
+          </div>
 
-            <div class="form-group">
-                <label>New password (optional)</label>
-                <input name="password" type="password" class="form-control" placeholder="Leave blank to keep current password">
-                @error('password') <small class="text-danger">{{ $message }}</small> @enderror
-            </div>
-
-            <div class="form-group">
-                <label>Confirm new password</label>
-                <input name="password_confirmation" type="password" class="form-control">
-            </div>
-
+          <div class="col-md-6 mb-3">
+            <label class="form-label">Confirm New Password</label>
+            <input type="password" name="password_confirmation" class="form-control" autocomplete="new-password">
+          </div>
         </div>
 
-        <div class="card-footer d-flex justify-content-end">
-            <button class="btn btn-primary">
-                <i class="fas fa-save mr-1"></i> Save
-            </button>
-        </div>
-    </form>
+        <button type="submit" class="btn btn-primary">
+          <i class="fas fa-save me-2"></i> Save Changes
+        </button>
+      </form>
+    </div>
+  </div>
+
 </div>
 @endsection

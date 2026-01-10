@@ -175,7 +175,12 @@
                     <a class="nav-link dropdown-toggle" href="#"
                        data-bs-toggle="dropdown" role="button" aria-expanded="false">
                         <i class="far fa-user"></i>
-                        <span class="ms-1">{{ auth()->user()->name ?? 'User' }}</span>
+                        @php
+                          $u = auth()->user();
+                          $displayName = trim(($u->first_name ?? '') . ' ' . ($u->last_name ?? ''));
+                          if ($displayName === '') $displayName = $u->email ?? 'User';
+                        @endphp
+                        <span class="ms-1">{{ $displayName }}</span>
                     </a>
 
                     <ul class="dropdown-menu dropdown-menu-end">
