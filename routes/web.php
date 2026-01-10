@@ -13,6 +13,7 @@ use App\Http\Controllers\Admin\UserController as AdminUserController;
 use App\Http\Controllers\Admin\SmtpSettingsController;
 use App\Http\Controllers\Admin\ConfigurationController;
 use App\Http\Controllers\Admin\AuditLogController;
+use App\Http\Controllers\BonusController;
 
 
 /*
@@ -91,6 +92,12 @@ Route::middleware('auth')->group(function () {
     | Expenses
     */
     Route::resource('expenses', ExpenseController::class)->except(['show']);
+
+    /*
+     | Bonus
+     */
+     Route::get('/bonus', [BonusController::class, 'index'])->name('bonus.index');
+     Route::post('/bonus/calculate', [BonusController::class, 'calculate'])->name('bonus.calculate');
 });
 
 /*
