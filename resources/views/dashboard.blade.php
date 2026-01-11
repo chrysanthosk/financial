@@ -4,6 +4,29 @@
 @section('page-title', 'Dashboard')
 
 @section('content')
+<style>
+  /* Mobile-first tweaks for AdminLTE small-box + page spacing */
+  @media (max-width: 575.98px) {
+    .content .container { padding-left: 12px; padding-right: 12px; }
+    .content-header { padding-bottom: .25rem; }
+
+    .small-box { margin-bottom: 1rem; }
+    .small-box .inner { padding: 12px; }
+    .small-box .inner h3 { font-size: 1.9rem; margin: 0; }
+    .small-box .inner p { font-size: 0.95rem; margin-bottom: .35rem; }
+    .small-box .icon { display: none; } /* keep things clean on phones */
+    .small-box-footer { padding: .5rem .75rem; font-size: .95rem; }
+
+    /* Charts: avoid squashed canvases */
+    .chart-wrap { height: 260px; }
+  }
+
+  /* Desktop/tablet chart height */
+  @media (min-width: 576px) {
+    .chart-wrap { height: 320px; }
+  }
+</style>
+
 <div class="mb-3">
     <h2 class="h4 mb-1">{{ $greeting }}, {{ $displayName }} 👋</h2>
     <div class="text-muted">Here’s a quick overview of this month’s performance.</div>
@@ -11,7 +34,7 @@
 
 <div class="row">
     {{-- Today Income --}}
-    <div class="col-lg-3 col-6">
+    <div class="col-12 col-sm-6 col-lg-3">
         <div class="small-box bg-success">
             <div class="inner">
                 <h3>{{ number_format((float)$todayIncome, 2) }}</h3>
@@ -27,7 +50,7 @@
     </div>
 
     {{-- MTD Income --}}
-    <div class="col-lg-3 col-6">
+    <div class="col-12 col-sm-6 col-lg-3">
         <div class="small-box bg-info">
             <div class="inner">
                 <h3>{{ number_format((float)$mtdIncome, 2) }}</h3>
@@ -43,7 +66,7 @@
     </div>
 
     {{-- MTD Expenses (dark-mode safe) --}}
-    <div class="col-lg-3 col-6">
+    <div class="col-12 col-sm-6 col-lg-3">
         <div class="small-box bg-warning text-white">
             <div class="inner">
                 <h3 class="text-white">{{ number_format((float)$mtdExpenses, 2) }}</h3>
@@ -59,7 +82,7 @@
     </div>
 
     {{-- MTD Profit --}}
-    <div class="col-lg-3 col-6">
+    <div class="col-12 col-sm-6 col-lg-3">
         <div class="small-box {{ $mtdProfit >= 0 ? 'bg-primary' : 'bg-danger' }}">
             <div class="inner">
                 <h3>{{ number_format((float)$mtdProfit, 2) }}</h3>
@@ -77,27 +100,31 @@
 
 <div class="row">
     {{-- Chart: Income vs Expenses by day --}}
-    <div class="col-lg-8">
+    <div class="col-12 col-lg-8">
         <div class="card">
             <div class="card-header">
                 <strong>Income vs Expenses (Current Month)</strong>
                 <div class="text-muted small">Daily totals</div>
             </div>
             <div class="card-body">
-                <canvas id="incomeVsExpenseChart" height="110"></canvas>
+                <div class="chart-wrap">
+                    <canvas id="incomeVsExpenseChart"></canvas>
+                </div>
             </div>
         </div>
     </div>
 
     {{-- Chart: Income by source --}}
-    <div class="col-lg-4">
+    <div class="col-12 col-lg-4">
         <div class="card">
             <div class="card-header">
                 <strong>Income by Method</strong>
                 <div class="text-muted small">Current month totals</div>
             </div>
             <div class="card-body">
-                <canvas id="incomeBySourceChart" height="140"></canvas>
+                <div class="chart-wrap">
+                    <canvas id="incomeBySourceChart"></canvas>
+                </div>
 
                 @if(empty($chartIncomeSourceLabels) || count($chartIncomeSourceLabels) === 0)
                     <div class="text-muted small mt-2">No income yet this month.</div>
@@ -110,6 +137,8 @@
 {{-- Chart.js --}}
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
+    const isMobile = window.matchMedia("(max-width: 575.98px)").matches;
+
     const labels = @json($chartLabels);
     const incomeSeries = @json($chartIncomeByDay);
     const expenseSeries = @json($chartExpensesByDay);
@@ -126,9 +155,22 @@
         },
         options: {
             responsive: true,
+            maintainAspectRatio: false,
             interaction: { mode: 'index', intersect: false },
-            plugins: { legend: { display: true } },
-            scales: { y: { beginAtZero: true } }
+            plugins: {
+                legend: { position: isMobile ? 'bottom' : 'top' }
+            },
+            scales: {
+                x: {
+                    ticks: {
+                        autoSkip: true,
+                        maxTicksLimit: isMobile ? 6 : 12,
+                        maxRotation: 0,
+                        minRotation: 0
+                    }
+                },
+                y: { beginAtZero: true }
+            }
         }
     });
 
@@ -144,6 +186,7 @@
         },
         options: {
             responsive: true,
+            maintainAspectRatio: false,
             plugins: { legend: { position: 'bottom' } }
         }
     });
