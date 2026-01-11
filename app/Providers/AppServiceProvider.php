@@ -5,6 +5,7 @@ namespace App\Providers;
 use App\Models\SmtpSetting;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Pagination\Paginator;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -21,6 +22,12 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        /**
+         * Use Bootstrap pagination views (AdminLTE/Bootstrap compatible).
+         * Fixes the "huge arrows" issue caused by Tailwind pagination templates.
+         */
+        Paginator::useBootstrapFive();
+
         // Apply SMTP settings from DB (best-effort, safe)
         try {
             if (Schema::hasTable('smtp_settings')) {

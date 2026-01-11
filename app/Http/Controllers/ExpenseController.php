@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Expense;
 use App\Models\ExpenseCategory;
 use App\Models\PaymentMethod;
+use App\Support\Audit;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -105,15 +106,36 @@ class ExpenseController extends Controller
             'reason'               => ['nullable', 'string', 'max:255'],
         ]);
 
-        // if not cheque, ignore cheque_no
-        if ((int)$validated['payment_method_id'] !== (int)PaymentMethod::where('name', 'Cheque')->value('id')) {
-            // keep whatever user typed; if you want strict behavior, uncomment:
+        // If not cheque, you *may* want to null cheque_no.
+        // Your current code keeps it, so we keep behavior the same.
+        // (Optional) detect Cheque id safely:
+        $chequeId = PaymentMethod::where('name', 'Cheque')->value('id');
+        if ($chequeId && (int)$validated['payment_method_id'] !== (int)$chequeId) {
+            // If you want strict behavior, uncomment:
             // $validated['cheque_no'] = null;
         }
 
         $validated['created_by'] = Auth::id();
 
-        Expense::create($validated);
+        $expense = Expense::create($validated);
+
+        Audit::log(
+            action: 'expense.created',
+            category: 'expenses',
+            request: $request,
+            userId: $request->user()?->id,
+            targetType: 'Expense',
+            targetId: (string)$expense->id,
+            meta: [
+                'expense_date' => (string)$expense->expense_date,
+                'payee_name' => (string)$expense->payee_name,
+                'expense_category_id' => (int)$expense->expense_category_id,
+                'payment_method_id' => (int)$expense->payment_method_id,
+                'amount' => (float)$expense->amount,
+                'cheque_no_present' => !empty($expense->cheque_no),
+                'reason_present' => !empty($expense->reason),
+            ]
+        );
 
         return redirect()->route('expenses.index')->with('status', 'Expense added successfully.');
     }
@@ -148,14 +170,92 @@ class ExpenseController extends Controller
             'reason'               => ['nullable', 'string', 'max:255'],
         ]);
 
+        $before = [
+            'expense_date' => (string)$expense->expense_date,
+            'payee_name' => (string)$expense->payee_name,
+            'expense_category_id' => (int)$expense->expense_category_id,
+            'payment_method_id' => (int)$expense->payment_method_id,
+            'amount' => (float)$expense->amount,
+            'cheque_no' => (string)($expense->cheque_no ?? ''),
+            'reason' => (string)($expense->reason ?? ''),
+        ];
+
         $expense->update($validated);
+
+        $after = [
+            'expense_date' => (string)$expense->expense_date,
+            'payee_name' => (string)$expense->payee_name,
+            'expense_category_id' => (int)$expense->expense_category_id,
+            'payment_method_id' => (int)$expense->payment_method_id,
+            'amount' => (float)$expense->amount,
+            'cheque_no' => (string)($expense->cheque_no ?? ''),
+            'reason' => (string)($expense->reason ?? ''),
+        ];
+
+        Audit::log(
+            action: 'expense.updated',
+            category: 'expenses',
+            request: $request,
+            userId: $request->user()?->id,
+            targetType: 'Expense',
+            targetId: (string)$expense->id,
+            meta: [
+                'changed' => [
+                    'expense_date' => $before['expense_date'] !== $after['expense_date'],
+                    'payee_name' => $before['payee_name'] !== $after['payee_name'],
+                    'expense_category_id' => $before['expense_category_id'] !== $after['expense_category_id'],
+                    'payment_method_id' => $before['payment_method_id'] !== $after['payment_method_id'],
+                    'amount' => $before['amount'] !== $after['amount'],
+                    'cheque_no' => $before['cheque_no'] !== $after['cheque_no'],
+                    'reason' => $before['reason'] !== $after['reason'],
+                ],
+                'before' => [
+                    'expense_date' => $before['expense_date'],
+                    'expense_category_id' => $before['expense_category_id'],
+                    'payment_method_id' => $before['payment_method_id'],
+                    'amount' => $before['amount'],
+                    'cheque_no_present' => $before['cheque_no'] !== '',
+                    'reason_present' => $before['reason'] !== '',
+                ],
+                'after' => [
+                    'expense_date' => $after['expense_date'],
+                    'expense_category_id' => $after['expense_category_id'],
+                    'payment_method_id' => $after['payment_method_id'],
+                    'amount' => $after['amount'],
+                    'cheque_no_present' => $after['cheque_no'] !== '',
+                    'reason_present' => $after['reason'] !== '',
+                ],
+            ]
+        );
 
         return redirect()->route('expenses.index')->with('status', 'Expense updated successfully.');
     }
 
-    public function destroy(Expense $expense)
+    public function destroy(Request $request, Expense $expense)
     {
+        $meta = [
+            'expense_date' => (string)$expense->expense_date,
+            'payee_name' => (string)$expense->payee_name,
+            'expense_category_id' => (int)$expense->expense_category_id,
+            'payment_method_id' => (int)$expense->payment_method_id,
+            'amount' => (float)$expense->amount,
+            'cheque_no_present' => !empty($expense->cheque_no),
+            'reason_present' => !empty($expense->reason),
+        ];
+
+        $id = (string)$expense->id;
+
         $expense->delete();
+
+        Audit::log(
+            action: 'expense.deleted',
+            category: 'expenses',
+            request: $request,
+            userId: $request->user()?->id,
+            targetType: 'Expense',
+            targetId: $id,
+            meta: $meta
+        );
 
         return redirect()->route('expenses.index')->with('status', 'Expense deleted successfully.');
     }

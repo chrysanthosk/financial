@@ -9,8 +9,6 @@
     <h1 class="h3 mb-0">Admin / Audit Log</h1>
   </div>
 
-  {{-- Flash status (kept only in layout) --}}
-
   <div class="card mb-3">
     <div class="card-header"><strong>Filters</strong></div>
     <div class="card-body">
@@ -21,7 +19,7 @@
             <label class="form-label">Category</label>
             <select name="category" class="form-control">
               <option value="">All</option>
-              @foreach($categories as $c)
+              @foreach(($categories ?? []) as $c)
                 <option value="{{ $c }}" @selected(request('category') === $c)>{{ $c }}</option>
               @endforeach
             </select>
@@ -29,16 +27,19 @@
 
           <div class="col-md-3 mb-3">
             <label class="form-label">Action contains</label>
-            <input type="text" name="action" class="form-control" value="{{ request('action') }}" placeholder="smtp. / user. / auth.">
+            <input type="text" name="action" class="form-control" value="{{ request('action') }}" placeholder="smtp. / user. / auth. / income. / expense.">
           </div>
 
           <div class="col-md-3 mb-3">
             <label class="form-label">User</label>
             <select name="user_id" class="form-control">
               <option value="">All</option>
-              @foreach($users as $u)
+              @foreach(($users ?? []) as $u)
+                @php
+                  $uName = trim(($u->first_name ?? '') . ' ' . ($u->last_name ?? ''));
+                @endphp
                 <option value="{{ $u->id }}" @selected((string)request('user_id') === (string)$u->id)>
-                  {{ $u->email }}{{ $u->name ? ' — '.$u->name : '' }}
+                  {{ $u->email }}{!! $uName !== '' ? ' — '.$uName : '' !!}
                 </option>
               @endforeach
             </select>
@@ -94,9 +95,9 @@
           <thead>
           <tr>
             <th style="width:140px;">Time</th>
-            <th style="width:200px;">User</th>
+            <th style="width:240px;">User</th>
             <th style="width:120px;">Category</th>
-            <th style="width:220px;">Action</th>
+            <th style="width:240px;">Action</th>
             <th style="width:160px;">Target</th>
             <th style="width:140px;">IP</th>
             <th>Meta</th>
@@ -104,6 +105,12 @@
           </thead>
           <tbody>
           @forelse($logs as $log)
+            @php
+              $logUserName = $log->user
+                ? trim(($log->user->first_name ?? '') . ' ' . ($log->user->last_name ?? ''))
+                : '';
+            @endphp
+
             <tr>
               <td class="text-muted small">
                 {{ $log->created_at?->format('Y-m-d H:i:s') }}
@@ -112,8 +119,8 @@
               <td class="small">
                 @if($log->user)
                   <div><strong>{{ $log->user->email }}</strong></div>
-                  @if($log->user->name)
-                    <div class="text-muted">{{ $log->user->name }}</div>
+                  @if($logUserName !== '')
+                    <div class="text-muted">{{ $logUserName }}</div>
                   @endif
                 @else
                   <span class="text-muted">Guest/Deleted</span>

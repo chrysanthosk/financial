@@ -35,7 +35,7 @@ Route::get('/', function () {
 |--------------------------------------------------------------------------
 */
 Route::get('/dashboard', [DashboardController::class, 'index'])
-    ->middleware(['auth'])
+    ->middleware(['auth', 'verified'])
     ->name('dashboard');
 
 /*

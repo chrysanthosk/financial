@@ -13,50 +13,112 @@ class DashboardController extends Controller
     {
         $user = $request->user();
 
-        $now = now(); // uses app timezone
-        $today = $now->toDateString();
-
-        $startOfMonth = $now->copy()->startOfMonth()->toDateString();
-        $endOfMonth   = $now->copy()->endOfMonth()->toDateString();
-
         // Greeting
-        $hour = (int)$now->format('H');
-        if ($hour >= 5 && $hour < 12) {
-            $greeting = 'Good morning';
-        } elseif ($hour >= 12 && $hour < 18) {
-            $greeting = 'Good afternoon';
-        } else {
-            $greeting = 'Good evening';
-        }
+        $hour = (int) now()->format('H');
+        $greeting = match (true) {
+            $hour < 12 => 'Good morning',
+            $hour < 18 => 'Good afternoon',
+            default => 'Good evening',
+        };
 
+        // Display name (prefer first/last)
         $displayName = trim(($user->first_name ?? '') . ' ' . ($user->last_name ?? ''));
         if ($displayName === '') {
-            $displayName = $user->name ?: $user->email ?: 'User';
+            $displayName = $user->name ?: ($user->email ?: 'User');
         }
 
-        // Totals
-        $todayIncome = 0;
-        $todayExpenses = 0;
-        $monthIncome = 0;
-        $monthExpenses = 0;
+        // Dates
+        $today = now()->toDateString();
+        $startOfMonth = now()->copy()->startOfMonth()->toDateString();
+        $endOfMonth = now()->copy()->endOfMonth()->toDateString();
+        $daysInMonth = (int) now()->daysInMonth;
 
-        try {
-            $todayIncome = (float) Income::whereDate('income_date', $today)->sum('amount');
-            $todayExpenses = (float) Expense::whereDate('expense_date', $today)->sum('amount');
+        // Totals (DB-agnostic)
+        $todayIncome = (float) Income::whereDate('income_date', $today)->sum('amount');
 
-            $monthIncome = (float) Income::whereBetween('income_date', [$startOfMonth, $endOfMonth])->sum('amount');
-            $monthExpenses = (float) Expense::whereBetween('expense_date', [$startOfMonth, $endOfMonth])->sum('amount');
-        } catch (\Throwable $e) {
-            // If tables don't exist yet, keep zeros (don't break dashboard)
+        $mtdIncome = (float) Income::whereBetween('income_date', [$startOfMonth, $endOfMonth])
+            ->sum('amount');
+
+        $mtdExpenses = (float) Expense::whereBetween('expense_date', [$startOfMonth, $endOfMonth])
+            ->sum('amount');
+
+        $mtdProfit = $mtdIncome - $mtdExpenses;
+
+        // -------------------------
+        // Chart 1: Income vs Expenses by day (current month)
+        // DB-agnostic grouping: groupBy(date column itself)
+        // -------------------------
+        $labels = [];
+        $incomeByDay = array_fill(1, $daysInMonth, 0.0);
+        $expenseByDay = array_fill(1, $daysInMonth, 0.0);
+
+        for ($d = 1; $d <= $daysInMonth; $d++) {
+            $labels[] = Carbon::createFromDate(now()->year, now()->month, $d)->toDateString();
+        }
+
+        $incomeRows = Income::query()
+            ->selectRaw('income_date as d, SUM(amount) as total')
+            ->whereBetween('income_date', [$startOfMonth, $endOfMonth])
+            ->groupBy('income_date')
+            ->get();
+
+        foreach ($incomeRows as $r) {
+            $day = Carbon::parse($r->d)->day; // 1..31
+            if ($day >= 1 && $day <= $daysInMonth) {
+                $incomeByDay[$day] = (float) $r->total;
+            }
+        }
+
+        $expenseRows = Expense::query()
+            ->selectRaw('expense_date as d, SUM(amount) as total')
+            ->whereBetween('expense_date', [$startOfMonth, $endOfMonth])
+            ->groupBy('expense_date')
+            ->get();
+
+        foreach ($expenseRows as $r) {
+            $day = Carbon::parse($r->d)->day;
+            if ($day >= 1 && $day <= $daysInMonth) {
+                $expenseByDay[$day] = (float) $r->total;
+            }
+        }
+
+        $chartIncomeByDay = array_values($incomeByDay);
+        $chartExpensesByDay = array_values($expenseByDay);
+
+        // -------------------------
+        // Chart 2: Income by method/source (current month)
+        // group by income_source_id is DB-agnostic
+        // -------------------------
+        $incomeBySourceRows = Income::with('source')
+            ->selectRaw('income_source_id, SUM(amount) as total')
+            ->whereBetween('income_date', [$startOfMonth, $endOfMonth])
+            ->groupBy('income_source_id')
+            ->orderByDesc('total')
+            ->get();
+
+        $chartIncomeSourceLabels = [];
+        $chartIncomeSourceTotals = [];
+
+        foreach ($incomeBySourceRows as $row) {
+            $chartIncomeSourceLabels[] = $row->source?->name ?? 'Unknown';
+            $chartIncomeSourceTotals[] = (float) $row->total;
         }
 
         return view('dashboard', [
             'greeting' => $greeting,
             'displayName' => $displayName,
+
             'todayIncome' => $todayIncome,
-            'todayExpenses' => $todayExpenses,
-            'monthIncome' => $monthIncome,
-            'monthExpenses' => $monthExpenses,
+            'mtdIncome' => $mtdIncome,
+            'mtdExpenses' => $mtdExpenses,
+            'mtdProfit' => $mtdProfit,
+
+            'chartLabels' => $labels,
+            'chartIncomeByDay' => $chartIncomeByDay,
+            'chartExpensesByDay' => $chartExpensesByDay,
+
+            'chartIncomeSourceLabels' => $chartIncomeSourceLabels,
+            'chartIncomeSourceTotals' => $chartIncomeSourceTotals,
         ]);
     }
 }
