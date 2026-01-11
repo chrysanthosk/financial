@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Income;
 use App\Models\IncomeSource;
+use App\Support\Audit;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -20,11 +21,11 @@ class IncomeController extends Controller
             $month = now()->format('Y-m');
         }
 
-        $start = \Carbon\Carbon::createFromFormat('Y-m', $month)->startOfMonth();
+        $start = Carbon::createFromFormat('Y-m', $month)->startOfMonth();
         $end   = (clone $start)->endOfMonth();
 
         // Active sources (columns)
-        $sources = \App\Models\IncomeSource::where('is_active', true)
+        $sources = IncomeSource::where('is_active', true)
             ->orderBy('sort_order')
             ->orderBy('name')
             ->get();
@@ -32,7 +33,7 @@ class IncomeController extends Controller
         $sourceIds = $sources->pluck('id')->all();
 
         // Pull all income rows for the month (we’ll pivot in PHP)
-        $rows = \App\Models\Income::query()
+        $rows = Income::query()
             ->with(['source'])
             ->whereBetween('income_date', [$start->toDateString(), $end->toDateString()])
             ->whereIn('income_source_id', $sourceIds)
@@ -47,7 +48,7 @@ class IncomeController extends Controller
         $pivot = [];       // ["YYYY-MM-DD"][source_id] => sum(amount)
 
         foreach ($rows as $r) {
-            $d = \Carbon\Carbon::parse($r->income_date)->toDateString();
+            $d = Carbon::parse($r->income_date)->toDateString();
             $sid = (int)$r->income_source_id;
 
             if (!isset($pivot[$d][$sid])) $pivot[$d][$sid] = 0.0;
@@ -94,7 +95,6 @@ class IncomeController extends Controller
             'rowTotals'   => $rowTotals,
             'colTotals'   => $colTotals,
             'monthTotal'  => $monthTotal,
-            // we’ll keep the old variable name available if you referenced it
             'sourceId'    => null,
         ]);
     }
@@ -125,7 +125,22 @@ class IncomeController extends Controller
 
         $validated['created_by'] = Auth::id();
 
-        Income::create($validated);
+        $income = Income::create($validated);
+
+        Audit::log(
+            action: 'income.created',
+            category: 'income',
+            request: $request,
+            userId: $request->user()?->id,
+            targetType: 'Income',
+            targetId: (string)$income->id,
+            meta: [
+                'income_date' => (string)$income->income_date,
+                'income_source_id' => (int)$income->income_source_id,
+                'amount' => (float)$income->amount,
+                'note_present' => !empty($income->note),
+            ]
+        );
 
         return redirect()->route('income.index')->with('status', 'Income added successfully.');
     }
@@ -154,14 +169,77 @@ class IncomeController extends Controller
             'note' => ['nullable', 'string', 'max:255'],
         ]);
 
+        $before = [
+            'income_date' => (string)$income->income_date,
+            'income_source_id' => (int)$income->income_source_id,
+            'amount' => (float)$income->amount,
+            'note' => (string)($income->note ?? ''),
+        ];
+
         $income->update($validated);
+
+        $after = [
+            'income_date' => (string)$income->income_date,
+            'income_source_id' => (int)$income->income_source_id,
+            'amount' => (float)$income->amount,
+            'note' => (string)($income->note ?? ''),
+        ];
+
+        Audit::log(
+            action: 'income.updated',
+            category: 'income',
+            request: $request,
+            userId: $request->user()?->id,
+            targetType: 'Income',
+            targetId: (string)$income->id,
+            meta: [
+                'changed' => [
+                    'income_date' => $before['income_date'] !== $after['income_date'],
+                    'income_source_id' => $before['income_source_id'] !== $after['income_source_id'],
+                    'amount' => $before['amount'] !== $after['amount'],
+                    'note' => $before['note'] !== $after['note'],
+                ],
+                'before' => [
+                    'income_date' => $before['income_date'],
+                    'income_source_id' => $before['income_source_id'],
+                    'amount' => $before['amount'],
+                    // keep note minimal (don’t store full free-text unless you want to)
+                    'note_present' => $before['note'] !== '',
+                ],
+                'after' => [
+                    'income_date' => $after['income_date'],
+                    'income_source_id' => $after['income_source_id'],
+                    'amount' => $after['amount'],
+                    'note_present' => $after['note'] !== '',
+                ],
+            ]
+        );
 
         return redirect()->route('income.index')->with('status', 'Income updated successfully.');
     }
 
-    public function destroy(Income $income)
+    public function destroy(Request $request, Income $income)
     {
+        $meta = [
+            'income_date' => (string)$income->income_date,
+            'income_source_id' => (int)$income->income_source_id,
+            'amount' => (float)$income->amount,
+            'note_present' => !empty($income->note),
+        ];
+
+        $id = (string)$income->id;
+
         $income->delete();
+
+        Audit::log(
+            action: 'income.deleted',
+            category: 'income',
+            request: $request,
+            userId: $request->user()?->id,
+            targetType: 'Income',
+            targetId: $id,
+            meta: $meta
+        );
 
         return redirect()->route('income.index')->with('status', 'Income deleted successfully.');
     }
