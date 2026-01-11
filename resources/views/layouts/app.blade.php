@@ -10,7 +10,7 @@
 
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 
-    {{-- UI fixes: dark-mode dropdowns + reports cards + mobile navbar polish --}}
+    {{-- UI fixes: dark-mode dropdowns + reports cards + mobile navbar polish + dropdown anchoring --}}
     <style>
         .badge-soon{
             display:inline-block;
@@ -74,7 +74,7 @@
             --bs-table-accent-bg: rgba(255,255,255,.03);
         }
 
-        /* Pagination arrows too big (AdminLTE/Bootstrap) */
+        /* Pagination arrows too big (AdminLTE/Bootstrap/Laravel paginator) */
         .pagination .page-link{
             padding: .35rem .65rem;
             line-height: 1.2;
@@ -91,20 +91,36 @@
             .navbar-nav .nav-link{ padding-top: .6rem; padding-bottom: .6rem; }
             .navbar .btn{ margin-top: .2rem; margin-bottom: .2rem; }
         }
-        /* User dropdown: clearer + mobile-friendly */
-        .navbar-nav .dropdown-menu {
-            z-index: 2000;               /* stays above everything */
+
+        /* -----------------------------
+           MOBILE DROPDOWN FIX (CRITICAL)
+           Prevent Popper weird centering in AdminLTE top-nav layouts
+        ------------------------------*/
+        .navbar-nav .dropdown { position: relative; }
+
+        .navbar-nav .dropdown-menu{
+            right: 0 !important;
+            left: auto !important;
+            top: 100% !important;
+            margin-top: .5rem !important;
+
+            /* Popper sometimes injects transforms -> disable */
+            transform: none !important;
+            inset: auto auto auto auto !important;
+
+            z-index: 2000;
             border-radius: .6rem;
-            overflow: hidden;            /* clean corners */
+            overflow: hidden;
+            min-width: 220px;
         }
 
-        .navbar-nav .dropdown-item {
-            padding: .8rem 1rem;         /* bigger tap target */
+        .navbar-nav .dropdown-item{
+            padding: .8rem 1rem;
             font-size: 1rem;
         }
 
-        .navbar-nav .dropdown-item i {
-            width: 1.25rem;              /* icon alignment */
+        .navbar-nav .dropdown-item i{
+            width: 1.25rem;
             text-align: center;
         }
 
@@ -114,23 +130,19 @@
             border-color: rgba(255,255,255,.12);
             box-shadow: 0 .5rem 1.2rem rgba(0,0,0,.45);
         }
-
         body.dark-mode .navbar-nav .dropdown-item{
             color: rgba(255,255,255,.92);
         }
-
         body.dark-mode .navbar-nav .dropdown-item:hover,
         body.dark-mode .navbar-nav .dropdown-item:focus{
             background-color: rgba(255,255,255,.10);
             color: #fff;
         }
 
-        /* Mobile: ensure it anchors right and doesn't go off-screen */
+        /* iPhone/small devices: keep it inside viewport */
         @media (max-width: 575.98px){
-            .navbar-nav .dropdown-menu-end{
-                right: 0;
-                left: auto;
-                min-width: 220px;
+            .navbar-nav .dropdown-menu{
+                max-width: calc(100vw - 24px);
             }
         }
     </style>
@@ -368,7 +380,8 @@
                 <!-- User dropdown -->
                 <li class="nav-item dropdown">
                     <a class="nav-link dropdown-toggle" href="#"
-                       data-bs-toggle="dropdown" data-bs-display="static"
+                       data-bs-toggle="dropdown"
+                       data-bs-display="static"
                        role="button" aria-expanded="false">
                         <i class="far fa-user"></i>
                         <span class="ms-1 d-none d-sm-inline">{{ auth()->user()->name ?? 'User' }}</span>
