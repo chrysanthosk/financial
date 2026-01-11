@@ -96,18 +96,15 @@
            MOBILE DROPDOWN FIX (CRITICAL)
            Prevent Popper weird centering in AdminLTE top-nav layouts
         ------------------------------*/
-
-        /* Keep dropdown anchored to its parent */
         .navbar-nav .dropdown { position: relative; }
 
-        /* Default dropdown alignment (right aligned) */
         .navbar-nav .dropdown-menu{
             right: 0 !important;
             left: auto !important;
             top: 100% !important;
             margin-top: .5rem !important;
 
-            /* Popper sometimes injects transforms/inset -> neutralize */
+            /* Popper sometimes injects transforms -> disable */
             transform: none !important;
             inset: auto auto auto auto !important;
 
@@ -115,20 +112,19 @@
             border-radius: .6rem;
             overflow: hidden;
             min-width: 220px;
-            box-shadow: 0 .5rem 1rem rgba(0,0,0,.25);
         }
 
-        /* Make items easier to tap */
         .navbar-nav .dropdown-item{
             padding: .8rem 1rem;
             font-size: 1rem;
         }
+
         .navbar-nav .dropdown-item i{
             width: 1.25rem;
             text-align: center;
         }
 
-        /* Dark-mode: stronger contrast */
+        /* Dark-mode: stronger contrast + better separation */
         body.dark-mode .navbar-nav .dropdown-menu{
             background-color: #1f2328;
             border-color: rgba(255,255,255,.12);
@@ -143,7 +139,7 @@
             color: #fff;
         }
 
-        /* iPhone/small devices: keep dropdown inside viewport */
+        /* iPhone/small devices: keep it inside viewport */
         @media (max-width: 575.98px){
             .navbar-nav .dropdown-menu{
                 max-width: calc(100vw - 24px);
