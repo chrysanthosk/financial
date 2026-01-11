@@ -13,10 +13,10 @@ use App\Http\Controllers\Admin\UserController as AdminUserController;
 use App\Http\Controllers\Admin\SmtpSettingsController;
 use App\Http\Controllers\Admin\ConfigurationController;
 use App\Http\Controllers\Admin\AuditLogController;
+
 use App\Http\Controllers\BonusController;
-
 use App\Http\Controllers\DashboardController;
-
+use App\Http\Controllers\ReportsController;
 
 /*
 |--------------------------------------------------------------------------
@@ -96,10 +96,33 @@ Route::middleware('auth')->group(function () {
     Route::resource('expenses', ExpenseController::class)->except(['show']);
 
     /*
-     | Bonus
-     */
-     Route::get('/bonus', [BonusController::class, 'index'])->name('bonus.index');
-     Route::post('/bonus/calculate', [BonusController::class, 'calculate'])->name('bonus.calculate');
+    | Bonus
+    */
+    Route::get('/bonus', [BonusController::class, 'index'])->name('bonus.index');
+    Route::post('/bonus/calculate', [BonusController::class, 'calculate'])->name('bonus.calculate');
+
+    /*
+    | Reports (Home + pages)
+    */
+    Route::prefix('reports')->name('reports.')->group(function () {
+        Route::get('/', [ReportsController::class, 'index'])->name('index');
+
+        // Core
+        Route::get('/monthly-profit', [ReportsController::class, 'monthlyProfit'])->name('monthly_profit');
+        Route::get('/ytd-income', [ReportsController::class, 'ytdIncome'])->name('ytd_income');
+        Route::get('/ytd-expenses', [ReportsController::class, 'ytdExpenses'])->name('ytd_expenses');
+        Route::get('/previous-year-comparison', [ReportsController::class, 'prevYearComparison'])->name('prev_year_comparison');
+
+        // Analysis
+        Route::get('/largest-transactions', [ReportsController::class, 'largestTransactions'])->name('largest_transactions');
+        Route::get('/recurring-expenses', [ReportsController::class, 'recurringExpenses'])->name('recurring_expenses');
+        Route::get('/category-trend', [ReportsController::class, 'categoryTrend'])->name('category_trend');
+
+        // Optional extras (scaffolded)
+        Route::get('/top-vendors', [ReportsController::class, 'topVendors'])->name('top_vendors');
+        Route::get('/expense-category-breakdown', [ReportsController::class, 'expenseCategoryBreakdown'])->name('expense_category_breakdown');
+        Route::get('/income-method-trend', [ReportsController::class, 'incomeMethodTrend'])->name('income_method_trend');
+    });
 });
 
 /*
@@ -125,15 +148,14 @@ Route::middleware(['auth', 'admin'])
         /*
         | Settings
         */
-        Route::prefix('settings')->name('settings.')->group(function ()
-        {
+        Route::prefix('settings')->name('settings.')->group(function () {
 
             // SMTP Settings
             Route::get('/smtp', [SmtpSettingsController::class, 'edit'])->name('smtp.edit');
             Route::put('/smtp', [SmtpSettingsController::class, 'update'])->name('smtp.update');
             Route::post('/smtp/test', [SmtpSettingsController::class, 'test'])->name('smtp.test');
 
-            // Configuration (Income Sources / Expense Categories / Payment Methods)
+            // Configuration
             Route::get('/configuration', [ConfigurationController::class, 'index'])->name('config.index');
 
             // Income Sources
@@ -154,6 +176,7 @@ Route::middleware(['auth', 'admin'])
             Route::put('/configuration/system', [ConfigurationController::class, 'updateSystem'])
                 ->name('config.system.update');
         });
+
         Route::get('/audit', [AuditLogController::class, 'index'])->name('audit.index');
     });
 
