@@ -10,7 +10,7 @@
 
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 
-    {{-- Small UI fixes + dark-mode safe "Soon" badge --}}
+    {{-- Small UI fixes + dark-mode safe dropdown --}}
     <style>
         .badge-soon{
             display:inline-block;
@@ -53,6 +53,9 @@
   $system = \App\Models\SystemSetting::safeCurrent();
   $brandHeader = $system?->header_name ?: config('app.name', 'Financial');
   $brandFooter = $system?->footer_name ?: config('app.name', 'Financial');
+
+  // Reports active state helper (expects route names like reports.*)
+  $reportsActive = request()->routeIs('reports.*');
 @endphp
 
 <body class="hold-transition layout-top-nav">
@@ -106,11 +109,108 @@
                         </a>
                     </li>
 
-                    <li class="nav-item">
-                        <a href="javascript:void(0)" class="nav-link disabled" tabindex="-1" aria-disabled="true">
-                            <i class="fas fa-university me-1"></i> Accounts
-                            <span class="badge-soon ms-1">Soon</span>
+                    {{-- Reports dropdown --}}
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle {{ $reportsActive ? 'active' : '' }}"
+                           href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            <i class="fas fa-chart-pie me-1"></i> Reports
                         </a>
+
+                        <ul class="dropdown-menu">
+                            {{-- ✅ All Reports (FIRST ITEM) --}}
+                            @if(\Illuminate\Support\Facades\Route::has('reports.index'))
+                                <li>
+                                    <a href="{{ route('reports.index') }}" class="dropdown-item">
+                                        <i class="fas fa-th-large me-2"></i> All Reports
+                                    </a>
+                                </li>
+                                <li><hr class="dropdown-divider"></li>
+                            @endif
+
+                            {{-- Core --}}
+                            @if(\Illuminate\Support\Facades\Route::has('reports.ytd_income'))
+                                <li>
+                                    <a href="{{ route('reports.ytd_income') }}" class="dropdown-item">
+                                        <i class="fas fa-coins me-2"></i> Year-to-Date Income
+                                    </a>
+                                </li>
+                            @endif
+
+                            @if(\Illuminate\Support\Facades\Route::has('reports.ytd_expenses'))
+                                <li>
+                                    <a href="{{ route('reports.ytd_expenses') }}" class="dropdown-item">
+                                        <i class="fas fa-receipt me-2"></i> Year-to-Date Expenses
+                                    </a>
+                                </li>
+                            @endif
+
+                            @if(\Illuminate\Support\Facades\Route::has('reports.monthly_profit'))
+                                <li>
+                                    <a href="{{ route('reports.monthly_profit') }}" class="dropdown-item">
+                                        <i class="fas fa-chart-line me-2"></i> Monthly Profit
+                                    </a>
+                                </li>
+                            @endif
+
+                            @if(\Illuminate\Support\Facades\Route::has('reports.prev_year_comparison'))
+                                <li>
+                                    <a href="{{ route('reports.prev_year_comparison') }}" class="dropdown-item">
+                                        <i class="fas fa-exchange-alt me-2"></i> Previous Year Comparison
+                                    </a>
+                                </li>
+                            @endif
+
+                            <li><hr class="dropdown-divider"></li>
+
+                            {{-- Analysis --}}
+                            @if(\Illuminate\Support\Facades\Route::has('reports.top_vendors'))
+                                <li>
+                                    <a href="{{ route('reports.top_vendors') }}" class="dropdown-item">
+                                        <i class="fas fa-store me-2"></i> Top Vendors
+                                    </a>
+                                </li>
+                            @endif
+
+                            @if(\Illuminate\Support\Facades\Route::has('reports.expense_category_breakdown'))
+                                <li>
+                                    <a href="{{ route('reports.expense_category_breakdown') }}" class="dropdown-item">
+                                        <i class="fas fa-chart-pie me-2"></i> Category Breakdown
+                                    </a>
+                                </li>
+                            @endif
+
+                            @if(\Illuminate\Support\Facades\Route::has('reports.income_method_trend'))
+                                <li>
+                                    <a href="{{ route('reports.income_method_trend') }}" class="dropdown-item">
+                                        <i class="fas fa-percentage me-2"></i> Income Method Trend
+                                    </a>
+                                </li>
+                            @endif
+
+                            @if(\Illuminate\Support\Facades\Route::has('reports.recurring_expenses'))
+                                <li>
+                                    <a href="{{ route('reports.recurring_expenses') }}" class="dropdown-item">
+                                        <i class="fas fa-redo-alt me-2"></i> Recurring Expenses Detector
+                                    </a>
+                                </li>
+                            @endif
+
+                            @if(\Illuminate\Support\Facades\Route::has('reports.largest_transactions'))
+                                <li>
+                                    <a href="{{ route('reports.largest_transactions') }}" class="dropdown-item">
+                                        <i class="fas fa-sort-amount-down-alt me-2"></i> Largest Transactions
+                                    </a>
+                                </li>
+                            @endif
+
+                            @if(\Illuminate\Support\Facades\Route::has('reports.category_trend'))
+                                <li>
+                                    <a href="{{ route('reports.category_trend') }}" class="dropdown-item">
+                                        <i class="fas fa-layer-group me-2"></i> Category Trend Over Time
+                                    </a>
+                                </li>
+                            @endif
+                        </ul>
                     </li>
 
                     @if(auth()->check() && (auth()->user()->role ?? null) === 'admin')
