@@ -10,7 +10,7 @@
 
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 
-    {{-- Small UI fixes + dark-mode safe dropdown --}}
+    {{-- UI fixes: dark-mode dropdowns + reports cards + mobile navbar polish --}}
     <style>
         .badge-soon{
             display:inline-block;
@@ -29,6 +29,7 @@
             color: rgba(255,255,255,.85);
         }
 
+        /* Dropdowns in dark mode */
         body.dark-mode .dropdown-menu{
             background-color: #2b2b2b;
             border-color: rgba(255,255,255,.10);
@@ -45,6 +46,51 @@
         body.dark-mode .dropdown-divider{
             border-top-color: rgba(255,255,255,.12);
         }
+
+        /* Cards and tables in dark mode (fix “white cards” in Reports page) */
+        body.dark-mode .card{
+            background-color: #2b2b2b;
+            color: rgba(255,255,255,.88);
+            border-color: rgba(255,255,255,.10);
+        }
+        body.dark-mode .card-header{
+            background-color: rgba(255,255,255,.04);
+            border-bottom-color: rgba(255,255,255,.10);
+        }
+        body.dark-mode .text-muted{
+            color: rgba(255,255,255,.55) !important;
+        }
+        body.dark-mode .table{
+            color: rgba(255,255,255,.85);
+        }
+        body.dark-mode .table thead th{
+            border-bottom-color: rgba(255,255,255,.12);
+        }
+        body.dark-mode .table td,
+        body.dark-mode .table th{
+            border-top-color: rgba(255,255,255,.10);
+        }
+        body.dark-mode .table-striped>tbody>tr:nth-of-type(odd)>*{
+            --bs-table-accent-bg: rgba(255,255,255,.03);
+        }
+
+        /* Pagination arrows too big (AdminLTE/Bootstrap) */
+        .pagination .page-link{
+            padding: .35rem .65rem;
+            line-height: 1.2;
+            font-size: .95rem;
+        }
+        .pagination svg{
+            width: 1em !important;
+            height: 1em !important;
+        }
+
+        /* Mobile navbar polish */
+        @media (max-width: 575.98px){
+            .navbar-brand .brand-text{ font-size: 1rem; }
+            .navbar-nav .nav-link{ padding-top: .6rem; padding-bottom: .6rem; }
+            .navbar .btn{ margin-top: .2rem; margin-bottom: .2rem; }
+        }
     </style>
 </head>
 
@@ -54,7 +100,7 @@
   $brandHeader = $system?->header_name ?: config('app.name', 'Financial');
   $brandFooter = $system?->footer_name ?: config('app.name', 'Financial');
 
-  // Reports active state helper (expects route names like reports.*)
+  // Active state helper (expects route names like reports.*)
   $reportsActive = request()->routeIs('reports.*');
 @endphp
 
@@ -62,7 +108,7 @@
 <div class="wrapper">
 
     <!-- Navbar -->
-    <nav class="main-header navbar navbar-expand navbar-white navbar-light">
+    <nav class="main-header navbar navbar-expand-md navbar-white navbar-light">
         <div class="container">
 
             <!-- Brand -->
@@ -282,7 +328,7 @@
                     <a class="nav-link dropdown-toggle" href="#"
                        data-bs-toggle="dropdown" role="button" aria-expanded="false">
                         <i class="far fa-user"></i>
-                        <span class="ms-1">{{ auth()->user()->name ?? 'User' }}</span>
+                        <span class="ms-1 d-none d-sm-inline">{{ auth()->user()->name ?? 'User' }}</span>
                     </a>
 
                     <ul class="dropdown-menu dropdown-menu-end">
