@@ -91,6 +91,48 @@
             .navbar-nav .nav-link{ padding-top: .6rem; padding-bottom: .6rem; }
             .navbar .btn{ margin-top: .2rem; margin-bottom: .2rem; }
         }
+        /* User dropdown: clearer + mobile-friendly */
+        .navbar-nav .dropdown-menu {
+            z-index: 2000;               /* stays above everything */
+            border-radius: .6rem;
+            overflow: hidden;            /* clean corners */
+        }
+
+        .navbar-nav .dropdown-item {
+            padding: .8rem 1rem;         /* bigger tap target */
+            font-size: 1rem;
+        }
+
+        .navbar-nav .dropdown-item i {
+            width: 1.25rem;              /* icon alignment */
+            text-align: center;
+        }
+
+        /* Dark-mode: stronger contrast + better separation */
+        body.dark-mode .navbar-nav .dropdown-menu{
+            background-color: #1f2328;
+            border-color: rgba(255,255,255,.12);
+            box-shadow: 0 .5rem 1.2rem rgba(0,0,0,.45);
+        }
+
+        body.dark-mode .navbar-nav .dropdown-item{
+            color: rgba(255,255,255,.92);
+        }
+
+        body.dark-mode .navbar-nav .dropdown-item:hover,
+        body.dark-mode .navbar-nav .dropdown-item:focus{
+            background-color: rgba(255,255,255,.10);
+            color: #fff;
+        }
+
+        /* Mobile: ensure it anchors right and doesn't go off-screen */
+        @media (max-width: 575.98px){
+            .navbar-nav .dropdown-menu-end{
+                right: 0;
+                left: auto;
+                min-width: 220px;
+            }
+        }
     </style>
 </head>
 
@@ -326,12 +368,13 @@
                 <!-- User dropdown -->
                 <li class="nav-item dropdown">
                     <a class="nav-link dropdown-toggle" href="#"
-                       data-bs-toggle="dropdown" role="button" aria-expanded="false">
+                       data-bs-toggle="dropdown" data-bs-display="static"
+                       role="button" aria-expanded="false">
                         <i class="far fa-user"></i>
                         <span class="ms-1 d-none d-sm-inline">{{ auth()->user()->name ?? 'User' }}</span>
                     </a>
 
-                    <ul class="dropdown-menu dropdown-menu-end">
+                    <ul class="dropdown-menu dropdown-menu-end mt-2 shadow">
                         <li>
                             <a href="{{ route('profile.edit') }}" class="dropdown-item">
                                 <i class="fas fa-user-cog me-2"></i> Profile
