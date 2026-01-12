@@ -89,6 +89,39 @@ PHP_FPM_SOCK=""
 DB_SERVICE="mysql"
 WEB_GROUP="www-data"            # Ubuntu/Debian default; on RHEL we will adjust to "nginx"
 
+# Prefer official composer path to avoid distro deprecation spam
+COMPOSER_BIN="/usr/local/bin/composer"
+
+# -------------------- Composer (official) --------------------
+install_official_composer(){
+  # Always prefer /usr/local/bin/composer.
+  # If it's missing OR current composer resolves to distro paths, install/overwrite official.
+  local need_install="no"
+
+  if [[ ! -x "$COMPOSER_BIN" ]]; then
+    need_install="yes"
+  fi
+
+  if command -v composer >/dev/null 2>&1; then
+    local p
+    p="$(command -v composer)"
+    if [[ "$p" == "/usr/bin/composer" ]] || [[ "$p" == "/usr/share/php/composer" ]] || [[ "$p" == "/usr/share/php/Composer" ]]; then
+      need_install="yes"
+    fi
+  else
+    need_install="yes"
+  fi
+
+  if [[ "$need_install" == "yes" ]]; then
+    log "Installing official Composer -> ${COMPOSER_BIN}"
+    curl -fsSL https://getcomposer.org/installer -o /tmp/composer-setup.php
+    php /tmp/composer-setup.php --install-dir=/usr/local/bin --filename=composer
+    rm -f /tmp/composer-setup.php
+  else
+    log "Official Composer already present: $($COMPOSER_BIN --version | head -n1)"
+  fi
+}
+
 # -------------------- install packages --------------------
 detect_php_version(){
   if command -v php >/dev/null 2>&1; then
@@ -134,15 +167,8 @@ install_packages_debian(){
   log "Installing Certbot..."
   apt-get install -y certbot python3-certbot-nginx
 
-  # Install official Composer (avoid distro Composer warnings)
-  if command -v composer >/dev/null 2>&1; then
-    log "Composer detected: $(composer --version | head -n1)"
-  else
-    log "Installing Composer..."
-    curl -fsSL https://getcomposer.org/installer -o /tmp/composer-setup.php
-    php /tmp/composer-setup.php --install-dir=/usr/local/bin --filename=composer
-    rm -f /tmp/composer-setup.php
-  fi
+  # Force official Composer (even if apt composer exists)
+  install_official_composer
 }
 
 install_packages_rhel(){
@@ -169,14 +195,8 @@ install_packages_rhel(){
   log "Installing Certbot..."
   dnf -y install certbot python3-certbot-nginx || true
 
-  if command -v composer >/dev/null 2>&1; then
-    log "Composer detected: $(composer --version | head -n1)"
-  else
-    log "Installing Composer..."
-    curl -fsSL https://getcomposer.org/installer -o /tmp/composer-setup.php
-    php /tmp/composer-setup.php --install-dir=/usr/local/bin --filename=composer
-    rm -f /tmp/composer-setup.php
-  fi
+  # Force official Composer (even if distro composer exists)
+  install_official_composer
 }
 
 ensure_services(){
@@ -225,8 +245,6 @@ EOF
 }
 
 ensure_nginx_fastcgi_files(){
-  # Some minimal/partial nginx installs may miss fastcgi_params and snippets.
-  # Create what we need so vhosts don't depend on distro-specific files.
   if [[ ! -f /etc/nginx/fastcgi_params ]]; then
     log "Creating missing /etc/nginx/fastcgi_params"
     cat >/etc/nginx/fastcgi_params <<'EOF'
@@ -304,7 +322,7 @@ create_database_and_user(){
   mysql_exec_root -e "GRANT ALL PRIVILEGES ON \`${DB_NAME}\`.* TO '${DB_USER}'@'%'; FLUSH PRIVILEGES;"
 }
 
-# -------------------- .env generation (100% from install.sh) --------------------
+# -------------------- .env generation --------------------
 write_full_env(){
   local env_path="$APP_DIR/.env"
 
@@ -317,7 +335,6 @@ write_full_env(){
   esc_db_user="$(env_escape "$DB_USER")"
   esc_db_pass="$(env_escape "$DB_PASS")"
 
-  # Preserve existing APP_KEY if present (rerun-safe)
   local existing_key=""
   if [[ -f "$env_path" ]]; then
     existing_key="$(grep -E '^APP_KEY=' "$env_path" | head -n1 | cut -d= -f2- || true)"
@@ -381,7 +398,6 @@ ensure_storage_dirs(){
 }
 
 update_env_keys(){
-  # Always enforce env/debug/url/db settings even if you keep existing .env
   local env_path="$APP_DIR/.env"
   local app_name_q app_url_q db_host_q db_port_q db_name_q db_user_q db_pass_q
   app_name_q="\"$(env_escape "$APP_NAME")\""
@@ -437,41 +453,35 @@ generate_env(){
   fi
 }
 
-# -------------------- permissions (CRITICAL FIX) --------------------
+# -------------------- permissions --------------------
 fix_permissions(){
   log "Fixing permissions for Laravel (storage + cache writable by ${WEB_GROUP})..."
 
-  # Ensure web group exists
   if ! getent group "$WEB_GROUP" >/dev/null 2>&1; then
     warn "Group $WEB_GROUP not found; creating it."
     groupadd "$WEB_GROUP" || true
   fi
 
-  # Make entire app owned by app user + web group (so php-fpm can write)
   chown -R "$APP_USER:$WEB_GROUP" "$APP_DIR"
 
-  # Ensure directories exist
   mkdir -p "$APP_DIR/storage" "$APP_DIR/bootstrap/cache"
   mkdir -p "$APP_DIR/storage/framework/views" "$APP_DIR/storage/framework/cache" "$APP_DIR/storage/framework/sessions"
 
-  # Setgid so newly created files keep web group
   find "$APP_DIR/storage" -type d -exec chmod 2775 {} \;
   find "$APP_DIR/storage" -type f -exec chmod 664 {} \;
 
   find "$APP_DIR/bootstrap/cache" -type d -exec chmod 2775 {} \;
   find "$APP_DIR/bootstrap/cache" -type f -exec chmod 664 {} \;
 
-  # Ensure public dir readable
   chmod -R o+rX "$APP_DIR/public" || true
 
-  # Helpful: allow deploy user to work with web group easily
   usermod -aG "$WEB_GROUP" "$APP_USER" >/dev/null 2>&1 || true
 }
 
 # -------------------- app dependencies --------------------
 install_app_deps(){
   log "Installing Composer deps..."
-  sudo -u "$APP_USER" composer -d "$APP_DIR" install --no-interaction --prefer-dist --optimize-autoloader
+  sudo -u "$APP_USER" "$COMPOSER_BIN" -d "$APP_DIR" install --no-interaction --prefer-dist --optimize-autoloader
 
   if [[ -f "$APP_DIR/package.json" ]]; then
     log "Installing Node deps..."
@@ -487,12 +497,10 @@ install_app_deps(){
 run_artisan(){
   log "Running artisan tasks..."
 
-  # Ensure .env values are loaded fresh
   sudo -u "$APP_USER" bash -lc "cd '$APP_DIR' && php artisan config:clear || true"
   sudo -u "$APP_USER" bash -lc "cd '$APP_DIR' && php artisan route:clear || true"
   sudo -u "$APP_USER" bash -lc "cd '$APP_DIR' && php artisan view:clear || true"
 
-  # Only generate APP_KEY if missing
   sudo -u "$APP_USER" bash -lc "cd '$APP_DIR' && \
     if ! grep -qE '^APP_KEY=base64:' .env; then \
       php artisan key:generate --force; \
@@ -500,19 +508,15 @@ run_artisan(){
       echo '[INFO] APP_KEY already set; skipping key:generate'; \
     fi"
 
-  # Run migrations FIRST (creates cache/jobs tables if using Laravel defaults)
+  # Migrate FIRST
   sudo -u "$APP_USER" bash -lc "cd '$APP_DIR' && php artisan migrate --force"
 
-  # Now it's safe to clear DB-backed cache/session/queue tables
+  # ✅ INITIAL SEED (ONLY INSTALL.SH DOES THIS)
+  log "Seeding database for initial setup (db:seed --force)..."
+  sudo -u "$APP_USER" bash -lc "cd '$APP_DIR' && php artisan db:seed --force"
+
   sudo -u "$APP_USER" bash -lc "cd '$APP_DIR' && php artisan cache:clear || true"
-
-  # Create storage symlink (safe to re-run)
   sudo -u "$APP_USER" bash -lc "cd '$APP_DIR' && php artisan storage:link || true"
-
-  # Optional: warm caches for production (safe even if you don't want it yet)
-  # sudo -u "$APP_USER" bash -lc "cd '$APP_DIR' && php artisan config:cache || true"
-  # sudo -u "$APP_USER" bash -lc "cd '$APP_DIR' && php artisan route:cache || true"
-  # sudo -u "$APP_USER" bash -lc "cd '$APP_DIR' && php artisan view:cache || true"
 }
 
 # -------------------- nginx config --------------------
@@ -679,7 +683,7 @@ EOF
   chmod 644 "$cron_file"
 }
 
-# -------------------- backups (mysqldump cron + retention) --------------------
+# -------------------- backups --------------------
 setup_backups(){
   if ! yesno "Enable daily mysqldump backups with retention?" "y"; then
     warn "Backups not enabled."
@@ -695,7 +699,6 @@ setup_backups(){
   chmod 700 "$backup_dir"
 
   local cron_file="/etc/cron.d/${PROJECT_SLUG}-mysqldump"
-  # Use root via unix_socket; no password stored in cron
   cat >"$cron_file" <<EOF
 0 2 * * * root mkdir -p ${backup_dir} && /usr/bin/mysqldump --databases "${DB_NAME}" --single-transaction --quick --lock-tables=false | gzip > ${backup_dir}/${DB_NAME}_\$(date +\%F).sql.gz
 15 2 * * * root find ${backup_dir} -type f -name "*.sql.gz" -mtime +${retention} -delete
@@ -720,6 +723,8 @@ DB:            ${DB_NAME}
 DB user:       ${DB_USER}
 PHP-FPM:       ${PHP_FPM_SERVICE} (${PHP_FPM_SOCK})
 Nginx site:    $(nginx_site_path)
+
+Composer:      ${COMPOSER_BIN}
 
 Test:
 1) Nginx:
@@ -781,7 +786,6 @@ if yesno "Enable HTTPS?" "y"; then
   fi
 fi
 
-# Install + configure
 if [[ "$OS_FAMILY" == "debian" ]]; then
   install_packages_debian
 else
@@ -798,7 +802,6 @@ create_database_and_user
 generate_env
 install_app_deps
 
-# Critical: permissions must be correct BEFORE artisan renders views in prod
 fix_permissions
 
 write_nginx_http
@@ -806,7 +809,6 @@ enable_https
 
 run_artisan
 
-# Permissions again after artisan (it creates files)
 fix_permissions
 
 setup_systemd_queue
