@@ -8,7 +8,6 @@
    AdminLTE Dark Mode (uses body.dark-mode)
    ========================================================= */
 
-/* Core surfaces */
 body.dark-mode,
 body.dark-mode .content-wrapper,
 body.dark-mode .main-footer,
@@ -192,57 +191,32 @@ body.dark-mode .badge-soon { background: rgba(255,255,255,.15); color: #fff; }
 .config-card-header[role="button"] { cursor: pointer; user-select: none; }
 
 /* =========================================================
-   TOP NAV (centered container + scrollable left menu)
+   NAVBAR FIXES (centered + responsive + dropdown safe)
    ========================================================= */
 
-/* Keep icon + text aligned and avoid wrapping */
-.main-header .navbar-nav .nav-link{
-  display: flex;
+/* Keep icon + text on one line */
+.main-header .navbar-nav .nav-link {
+  display: inline-flex;
   align-items: center;
   white-space: nowrap;
-  gap: .4rem;
-}
-.main-header .navbar-nav .nav-link i{
-  margin-right: 0 !important;
 }
 
-/* Only the LEFT menu scrolls on desktop/laptop if it overflows */
-.topnav-scroll{
-  min-width: 0;
-}
-
-/* Desktop behavior: left nav single line + horizontal scroll */
-@media (min-width: 992px){
-  .topnav-scroll{
-    overflow-x: auto;
-    overflow-y: visible;          /* ✅ allow dropdowns to be visible */
-    -webkit-overflow-scrolling: touch;
-    flex: 1 1 auto;
-    min-width: 0;
-    position: relative;           /* ✅ helps dropdown stacking context */
+/* Slightly tighten spacing so it fits better */
+@media (min-width: 1200px) and (max-width: 1399.98px) {
+  .main-header .navbar-nav .nav-link {
+    padding-left: .65rem;
+    padding-right: .65rem;
+    font-size: .95rem;
   }
-
-  .topnav-scroll .navbar-nav{
-    flex-wrap: nowrap !important;
-    white-space: nowrap;
-  }
-
-  /* optional: keep scrollbar styling */
-  .topnav-scroll::-webkit-scrollbar{ height: 6px; }
-  .topnav-scroll::-webkit-scrollbar-thumb{ background: rgba(0,0,0,.15); border-radius: 10px; }
-  body.dark-mode .topnav-scroll::-webkit-scrollbar-thumb{ background: rgba(255,255,255,.15); }
 }
-/* Ensure dropdown renders above navbar and isn't clipped */
-.topnav-scroll .dropdown-menu{
+
+/* Ensure dropdowns appear above header/content */
+.main-header .dropdown-menu {
   z-index: 3000;
 }
 
-/* Right side stays right */
-.navbar-no-expand{
-  white-space: nowrap;
-}
-
-/* Prevent long username from breaking layout */
+/* Keep right side compact */
+.navbar-no-expand { white-space: nowrap; }
 .navbar-no-expand .nav-link span{
   max-width: 180px;
   overflow: hidden;
@@ -250,6 +224,3 @@ body.dark-mode .badge-soon { background: rgba(255,255,255,.15); color: #fff; }
   display: inline-block;
   vertical-align: bottom;
 }
-
-/* Dropdown anchoring safety (kept, but not overly aggressive) */
-.navbar-nav .dropdown { position: relative; }
