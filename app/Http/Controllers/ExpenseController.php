@@ -24,6 +24,18 @@ class ExpenseController extends Controller
         $categoryId = $request->integer('category_id') ?: null;
         $methodId   = $request->integer('method_id') ?: null;
 
+        // NEW: sorting params (date toggle)
+        $allowedSorts = ['expense_date'];
+        $sort = $request->string('sort')->toString() ?: 'expense_date';
+        if (!in_array($sort, $allowedSorts, true)) {
+            $sort = 'expense_date';
+        }
+
+        $direction = strtolower($request->string('direction')->toString() ?: 'desc');
+        if (!in_array($direction, ['asc', 'desc'], true)) {
+            $direction = 'desc';
+        }
+
         // Use [startOfMonth, startOfNextMonth) to avoid end-of-month/time issues
         $start = Carbon::createFromFormat('Y-m', $month)->startOfMonth();
         $end   = (clone $start)->addMonth(); // exclusive
@@ -37,9 +49,7 @@ class ExpenseController extends Controller
         $query = Expense::query()
             ->with(['category', 'method'])
             ->where('expense_date', '>=', $start)
-            ->where('expense_date', '<', $end)
-            ->orderByDesc('expense_date')
-            ->orderByDesc('id');
+            ->where('expense_date', '<', $end);
 
         if ($categoryId) {
             $query->where('expense_category_id', $categoryId);
@@ -48,8 +58,18 @@ class ExpenseController extends Controller
             $query->where('payment_method_id', $methodId);
         }
 
+        // Apply sorting (primary + stable secondary)
+        if ($sort === 'expense_date') {
+            if ($direction === 'asc') {
+                $query->orderBy('expense_date', 'asc')->orderBy('id', 'asc');
+            } else {
+                $query->orderBy('expense_date', 'desc')->orderBy('id', 'desc');
+            }
+        }
+
         $expenses = $query->paginate(20)->withQueryString();
 
+        // Sum should match the current filtered query (but without pagination)
         $monthTotal = (clone $query)->sum('amount');
 
         // breakdown per payment method (ignores method filter so you can always see it)
@@ -70,6 +90,10 @@ class ExpenseController extends Controller
             'expenses'        => $expenses,
             'monthTotal'      => $monthTotal,
             'totalsPerMethod' => $totalsPerMethod,
+
+            // NEW: pass sort state to blade
+            'sort'            => $sort,
+            'direction'       => $direction,
         ]);
     }
 
