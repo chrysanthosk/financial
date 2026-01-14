@@ -81,7 +81,7 @@
 
                                 <th style="width:130px;">
                                     <a href="{{ $dateSortUrl }}"
-                                       class="text-decoration-none text-dark d-inline-flex align-items-center gap-1">
+                                       class="text-decoration-none text-white d-inline-flex align-items-center gap-1">
                                         Date
                                         @if($isSorted)
                                         <i class="fas fa-sort-{{ $direction === 'asc' ? 'up' : 'down' }}"></i>
