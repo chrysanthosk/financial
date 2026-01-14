@@ -215,9 +215,11 @@ body.dark-mode .badge-soon { background: rgba(255,255,255,.15); color: #fff; }
 @media (min-width: 992px){
   .topnav-scroll{
     overflow-x: auto;
-    overflow-y: hidden;
+    overflow-y: visible;          /* ✅ allow dropdowns to be visible */
     -webkit-overflow-scrolling: touch;
     flex: 1 1 auto;
+    min-width: 0;
+    position: relative;           /* ✅ helps dropdown stacking context */
   }
 
   .topnav-scroll .navbar-nav{
@@ -225,9 +227,14 @@ body.dark-mode .badge-soon { background: rgba(255,255,255,.15); color: #fff; }
     white-space: nowrap;
   }
 
+  /* optional: keep scrollbar styling */
   .topnav-scroll::-webkit-scrollbar{ height: 6px; }
   .topnav-scroll::-webkit-scrollbar-thumb{ background: rgba(0,0,0,.15); border-radius: 10px; }
   body.dark-mode .topnav-scroll::-webkit-scrollbar-thumb{ background: rgba(255,255,255,.15); }
+}
+/* Ensure dropdown renders above navbar and isn't clipped */
+.topnav-scroll .dropdown-menu{
+  z-index: 3000;
 }
 
 /* Right side stays right */
