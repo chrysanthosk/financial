@@ -186,3 +186,42 @@ body.dark-mode .badge-soon {
   background: rgba(255,255,255,.15);
   color: #fff;
 }
+/* =========================================================
+   Configuration accordion chevron alignment
+   ========================================================= */
+
+/* Make the header layout deterministic */
+.config-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .75rem;
+}
+
+/* Ensure the left text block doesn't affect chevron alignment */
+.config-card-header > div:first-child {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+/* Give the chevron a fixed "slot" so all rows align perfectly */
+.config-card-header .config-chevron {
+  width: 1.25rem;
+  text-align: center;
+  line-height: 1;
+  flex: 0 0 1.25rem;
+  margin-left: auto; /* extra safety */
+  transition: transform .15s ease-in-out;
+}
+
+/* Rotate when expanded (your original behavior) */
+.config-card-header[aria-expanded="true"] .config-chevron {
+  transform: rotate(180deg);
+}
+
+/* Optional: slightly increase clickable area so it feels nicer */
+.config-card-header[role="button"] {
+  cursor: pointer;
+  user-select: none;
+}
