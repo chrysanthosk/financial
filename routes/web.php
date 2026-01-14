@@ -13,6 +13,7 @@ use App\Http\Controllers\Admin\UserController as AdminUserController;
 use App\Http\Controllers\Admin\SmtpSettingsController;
 use App\Http\Controllers\Admin\ConfigurationController;
 use App\Http\Controllers\Admin\AuditLogController;
+use App\Http\Controllers\Admin\ImportController;
 
 use App\Http\Controllers\BonusController;
 use App\Http\Controllers\DashboardController;
@@ -178,6 +179,34 @@ Route::middleware(['auth', 'admin'])
         });
 
         Route::get('/audit', [AuditLogController::class, 'index'])->name('audit.index');
+    });
+
+/*
+|--------------------------------------------------------------------------
+| Tools Area (Admin)
+|--------------------------------------------------------------------------
+| Separate from Settings. Uses the SAME ImportController + views you already have,
+| but exposed under /tools with route names tools.import.*
+*/
+Route::middleware(['auth', 'admin'])
+    ->prefix('tools')
+    ->name('tools.')
+    ->group(function () {
+
+        // Tools → Import landing
+        Route::get('/import', [ImportController::class, 'index'])->name('import.index');
+
+        // Upload screen
+        Route::get('/import/{type}', [ImportController::class, 'showUpload'])->name('import.upload');
+
+        // Handle upload → mapping
+        Route::post('/import/{type}/upload', [ImportController::class, 'handleUpload'])->name('import.handle_upload');
+
+        // Mapping → preview
+        Route::post('/import/{type}/preview', [ImportController::class, 'preview'])->name('import.preview');
+
+        // Commit import
+        Route::post('/import/{type}/commit', [ImportController::class, 'commit'])->name('import.commit');
     });
 
 require __DIR__ . '/auth.php';

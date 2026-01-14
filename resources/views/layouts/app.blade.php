@@ -149,6 +149,14 @@
                 max-width: calc(100vw - 24px);
             }
         }
+        body.dark-mode .form-text,
+        body.dark-mode small.form-text,
+        body.dark-mode .form-check-label,
+        body.dark-mode label,
+        body.dark-mode .small,
+        body.dark-mode .text-secondary {
+            color: rgba(255,255,255,.70) !important;
+        }
     </style>
 </head>
 
@@ -323,6 +331,24 @@
                                class="nav-link {{ request()->routeIs('admin.users.*') ? 'active' : '' }}">
                                 <i class="fas fa-users me-1"></i> Users
                             </a>
+                        </li>
+
+                        {{-- ✅ Tools dropdown (Admin only) --}}
+                        <li class="nav-item dropdown">
+                            <a class="nav-link dropdown-toggle {{ request()->routeIs('tools.*') ? 'active' : '' }}"
+                               href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                <i class="fas fa-toolbox me-1"></i> Tools
+                            </a>
+
+                            <ul class="dropdown-menu">
+                                @if(\Illuminate\Support\Facades\Route::has('tools.import.index'))
+                                    <li>
+                                        <a href="{{ route('tools.import.index') }}" class="dropdown-item">
+                                            <i class="fas fa-file-import me-2"></i> Import
+                                        </a>
+                                    </li>
+                                @endif
+                            </ul>
                         </li>
 
                         {{-- Settings dropdown (Admin only) --}}

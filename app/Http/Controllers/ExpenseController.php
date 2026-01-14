@@ -24,8 +24,9 @@ class ExpenseController extends Controller
         $categoryId = $request->integer('category_id') ?: null;
         $methodId   = $request->integer('method_id') ?: null;
 
+        // Use [startOfMonth, startOfNextMonth) to avoid end-of-month/time issues
         $start = Carbon::createFromFormat('Y-m', $month)->startOfMonth();
-        $end   = (clone $start)->endOfMonth();
+        $end   = (clone $start)->addMonth(); // exclusive
 
         $categories = ExpenseCategory::where('is_active', true)
             ->orderBy('sort_order')->orderBy('name')->get();
@@ -35,7 +36,8 @@ class ExpenseController extends Controller
 
         $query = Expense::query()
             ->with(['category', 'method'])
-            ->whereBetween('expense_date', [$start->toDateString(), $end->toDateString()])
+            ->where('expense_date', '>=', $start)
+            ->where('expense_date', '<', $end)
             ->orderByDesc('expense_date')
             ->orderByDesc('id');
 
@@ -53,7 +55,8 @@ class ExpenseController extends Controller
         // breakdown per payment method (ignores method filter so you can always see it)
         $totalsPerMethod = Expense::query()
             ->selectRaw('payment_method_id, SUM(amount) as total')
-            ->whereBetween('expense_date', [$start->toDateString(), $end->toDateString()])
+            ->where('expense_date', '>=', $start)
+            ->where('expense_date', '<', $end)
             ->when($categoryId, fn($q) => $q->where('expense_category_id', $categoryId))
             ->groupBy('payment_method_id')
             ->pluck('total', 'payment_method_id');
@@ -106,12 +109,9 @@ class ExpenseController extends Controller
             'reason'               => ['nullable', 'string', 'max:255'],
         ]);
 
-        // If not cheque, you *may* want to null cheque_no.
-        // Your current code keeps it, so we keep behavior the same.
-        // (Optional) detect Cheque id safely:
         $chequeId = PaymentMethod::where('name', 'Cheque')->value('id');
         if ($chequeId && (int)$validated['payment_method_id'] !== (int)$chequeId) {
-            // If you want strict behavior, uncomment:
+            // Optional strict behavior:
             // $validated['cheque_no'] = null;
         }
 
