@@ -20,7 +20,7 @@ class TwoFactorController extends Controller
 
         return view('profile.2fa', [
             'user' => $user,
-            'qrPngDataUri' => null, // keep name for blade compatibility
+            'qrPngDataUri' => null,
             'secret' => null,
         ]);
     }
@@ -37,6 +37,7 @@ class TwoFactorController extends Controller
         // Store temporarily until confirmed
         $user->two_factor_secret = Crypt::encryptString($secret);
         $user->two_factor_enabled = false;
+        $user->two_factor_confirmed_at = null;
         $user->save();
 
         $issuer = config('app.name', 'Financial');
@@ -68,7 +69,7 @@ class TwoFactorController extends Controller
 
         return view('profile.2fa', [
             'user' => $user,
-            'qrPngDataUri' => $qrDataUri, // keep variable name used by your blade
+            'qrPngDataUri' => $qrDataUri,
             'secret' => $secret,
         ]);
     }
@@ -125,12 +126,14 @@ class TwoFactorController extends Controller
         }
 
         $user->two_factor_enabled = true;
+        $user->two_factor_confirmed_at = now();
 
         // Generate recovery codes
         $recoveryCodes = [];
         for ($i = 0; $i < 10; $i++) {
             $recoveryCodes[] = strtoupper(Str::random(10)) . '-' . strtoupper(Str::random(10));
         }
+
         $user->two_factor_recovery_codes = Crypt::encryptString(json_encode($recoveryCodes));
         $user->save();
 
@@ -157,6 +160,7 @@ class TwoFactorController extends Controller
         $user->two_factor_enabled = false;
         $user->two_factor_secret = null;
         $user->two_factor_recovery_codes = null;
+        $user->two_factor_confirmed_at = null;
         $user->save();
 
         Audit::log(
@@ -199,9 +203,6 @@ class TwoFactorController extends Controller
         return Redirect::route('profile.2fa.show')->with('status', 'Recovery codes regenerated. Save the new codes.');
     }
 
-    /**
-     * SVG QR as data URI (reliable, no external assets).
-     */
     private function makeQrSvgDataUri(string $text, int $size = 220): string
     {
         $renderer = new ImageRenderer(

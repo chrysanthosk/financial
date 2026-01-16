@@ -8,6 +8,7 @@ use App\Http\Controllers\IncomeController;
 use App\Http\Controllers\ExpenseController;
 use App\Http\Controllers\EmailChangeController;
 use App\Http\Controllers\TwoFactorController;
+use App\Http\Controllers\TwoFactorChallengeController;
 
 use App\Http\Controllers\Admin\UserController as AdminUserController;
 use App\Http\Controllers\Admin\SmtpSettingsController;
@@ -29,6 +30,17 @@ Route::get('/', function () {
         ? redirect()->route('dashboard')
         : redirect()->route('login');
 });
+
+/*
+|--------------------------------------------------------------------------
+| 2FA Challenge (must be public, enforced by middleware via session)
+|--------------------------------------------------------------------------
+*/
+Route::get('/two-factor-challenge', [TwoFactorChallengeController::class, 'show'])
+    ->name('two-factor.challenge.show');
+
+Route::post('/two-factor-challenge', [TwoFactorChallengeController::class, 'verify'])
+    ->name('two-factor.challenge.verify');
 
 /*
 |--------------------------------------------------------------------------
@@ -185,27 +197,16 @@ Route::middleware(['auth', 'admin'])
 |--------------------------------------------------------------------------
 | Tools Area (Admin)
 |--------------------------------------------------------------------------
-| Separate from Settings. Uses the SAME ImportController + views you already have,
-| but exposed under /tools with route names tools.import.*
 */
 Route::middleware(['auth', 'admin'])
     ->prefix('tools')
     ->name('tools.')
     ->group(function () {
 
-        // Tools → Import landing
         Route::get('/import', [ImportController::class, 'index'])->name('import.index');
-
-        // Upload screen
         Route::get('/import/{type}', [ImportController::class, 'showUpload'])->name('import.upload');
-
-        // Handle upload → mapping
         Route::post('/import/{type}/upload', [ImportController::class, 'handleUpload'])->name('import.handle_upload');
-
-        // Mapping → preview
         Route::post('/import/{type}/preview', [ImportController::class, 'preview'])->name('import.preview');
-
-        // Commit import
         Route::post('/import/{type}/commit', [ImportController::class, 'commit'])->name('import.commit');
     });
 
