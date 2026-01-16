@@ -224,3 +224,25 @@ body.dark-mode .badge-soon { background: rgba(255,255,255,.15); color: #fff; }
   display: inline-block;
   vertical-align: bottom;
 }
+
+/* =========================================================
+   2FA Recovery codes box (fix white-on-white in dark mode)
+   ========================================================= */
+
+.recovery-codes-box{
+  background: #f8f9fa;   /* light mode background */
+  color: #212529;        /* light mode text */
+}
+
+body.dark-mode .recovery-codes-box{
+  background: #2b2f33 !important;
+  color: #f8f9fa !important;
+  border-color: #495057 !important;
+}
+
+body.dark-mode .recovery-codes-box .text-muted{
+  color: #c2c7d0 !important;
+}
+
+.qr-wrap{ background: #fff; }
+body.dark-mode .qr-wrap{ background: #fff; border-color: rgba(255,255,255,.15) !important; }
