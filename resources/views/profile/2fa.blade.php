@@ -46,7 +46,7 @@
                 <div class="mb-2"><strong>Scan this QR</strong></div>
 
                 {{-- Works for both data:image/svg+xml;base64,... and data:image/png;base64,... --}}
-                <div class="d-inline-block bg-white p-2 rounded border">
+                <div class="d-inline-block p-2 rounded border qr-wrap">
                   <img
                     src="{{ $qrPngDataUri }}"
                     alt="2FA QR Code"
@@ -151,7 +151,7 @@
               Save these codes somewhere safe. Each code can be used once if you lose your authenticator.
             </p>
 
-            <div class="bg-light p-3 rounded border"
+            <div class="p-3 rounded border recovery-codes-box"
                  id="recoveryCodesBox"
                  style="font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;">
               @forelse($codes as $c)
