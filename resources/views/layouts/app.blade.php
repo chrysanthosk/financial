@@ -59,6 +59,13 @@
                     </li>
 
                     <li class="nav-item">
+                      <a href="{{ route('admin.emp_income.index') }}"
+                         class="nav-link {{ request()->routeIs('admin.emp_income.*') ? 'active' : '' }}">
+                        <i class="fas fa-user-tie me-1"></i> Emp. Income
+                      </a>
+                    </li>
+
+                    <li class="nav-item">
                         <a href="{{ route('expenses.index') }}"
                            class="nav-link {{ request()->routeIs('expenses.*') ? 'active' : '' }}">
                             <i class="fas fa-file-invoice-dollar me-1"></i> Expenses
