@@ -706,4 +706,47 @@ class ReportsController extends Controller
 
         return $profit;
     }
+public function prevYearMonthlyIncomeComparison(Request $request)
+    {
+        $year = (int)($request->query('year') ?: now()->year);
+        $prev = $year - 1;
+
+        $fromYear = Carbon::create($year, 1, 1)->startOfDay()->toDateString();
+        $toYear   = Carbon::create($year, 12, 31)->endOfDay()->toDateString();
+
+        $fromPrev = Carbon::create($prev, 1, 1)->startOfDay()->toDateString();
+        $toPrev   = Carbon::create($prev, 12, 31)->endOfDay()->toDateString();
+
+        // Income rows (DB-agnostic)
+        $rowsYear = Income::whereBetween('income_date', [$fromYear, $toYear])->get(['income_date', 'amount']);
+        $rowsPrev = Income::whereBetween('income_date', [$fromPrev, $toPrev])->get(['income_date', 'amount']);
+
+        $incomeByMonthYear = array_fill(1, 12, 0.0);
+        $incomeByMonthPrev = array_fill(1, 12, 0.0);
+
+        foreach ($rowsYear as $r) {
+            $m = Carbon::parse($r->income_date)->month;
+            $incomeByMonthYear[$m] += (float)$r->amount;
+        }
+
+        foreach ($rowsPrev as $r) {
+            $m = Carbon::parse($r->income_date)->month;
+            $incomeByMonthPrev[$m] += (float)$r->amount;
+        }
+
+        $labels = [];
+        for ($m = 1; $m <= 12; $m++) {
+            $labels[] = Carbon::create($year, $m, 1)->format('M');
+        }
+
+        return view('reports.prev_year_monthly_income', [
+            'year' => $year,
+            'prevYear' => $prev,
+            'labels' => $labels,
+            'incomeYear' => array_values($incomeByMonthYear),
+            'incomePrev' => array_values($incomeByMonthPrev),
+            'totalYear' => array_sum($incomeByMonthYear),
+            'totalPrev' => array_sum($incomeByMonthPrev),
+        ]);
+    }
 }
