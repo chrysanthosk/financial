@@ -137,6 +137,14 @@
                                 </li>
                             @endif
 
+                            @if(\Illuminate\Support\Facades\Route::has('reports.prev_year_monthly_income'))
+                                <li>
+                                    <a href="{{ route('reports.prev_year_monthly_income') }}" class="dropdown-item">
+                                        <i class="fas fa-chart-bar me-2"></i> Prev Year Monthly Income
+                                    </a>
+                                </li>
+                            @endif
+
                             <li><hr class="dropdown-divider"></li>
 
                             @if(\Illuminate\Support\Facades\Route::has('reports.top_vendors'))

@@ -177,6 +177,12 @@
             <span class="text-muted small">Current vs Previous • Month-by-month</span>
           </a>
 
+        <a class="list-group-item list-group-item-action d-flex justify-content-between align-items-center"
+           href="{{ route('reports.prev_year_monthly_income', ['year' => $year]) }}">
+          <span><i class="fas fa-coins me-2"></i> Previous Year Monthly Income Comparison</span>
+          <span class="text-muted small">This year vs last year • Month-by-month</span>
+        </a>
+
         </div>
       </div>
     </div>

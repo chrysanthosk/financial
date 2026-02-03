@@ -138,10 +138,14 @@ Route::middleware('auth')->group(function () {
         Route::get('/expense-category-breakdown', [ReportsController::class, 'expenseCategoryBreakdown'])->name('expense_category_breakdown');
         Route::get('/income-method-trend', [ReportsController::class, 'incomeMethodTrend'])->name('income_method_trend');
 
-        // ✅ NEW: Employee Income (Admin only)
+        // Employee Income (Admin only)
         Route::get('/employee-income', [ReportsController::class, 'employeeIncome'])
             ->name('employee_income')
             ->middleware('admin');
+
+        // Previous Year Monthly Income
+        Route::get('/prev-year-monthly-income', [ReportsController::class, 'prevYearMonthlyIncomeComparison'])
+            ->name('prev_year_monthly_income');
     });
 });
 
