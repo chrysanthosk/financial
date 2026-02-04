@@ -25,6 +25,17 @@
   @media (min-width: 576px) {
     .chart-wrap { height: 320px; }
   }
+
+  /* Unpaid table dark-mode safe */
+  body.dark-mode .table-unpaid {
+    color: rgba(255,255,255,.92);
+  }
+  body.dark-mode .table-unpaid thead th {
+    color: rgba(255,255,255,.92);
+  }
+  body.dark-mode .table-unpaid tbody td {
+    color: rgba(255,255,255,.90);
+  }
 </style>
 
 <div class="mb-3">
@@ -110,6 +121,56 @@
                 <div class="chart-wrap">
                     <canvas id="incomeVsExpenseChart"></canvas>
                 </div>
+
+                {{-- Unpaid Expenses table --}}
+                <hr class="my-3">
+
+                <div class="d-flex align-items-center justify-content-between mb-2">
+                    <div>
+                        <strong><i class="fas fa-exclamation-circle me-1"></i> Unpaid Expenses</strong>
+                        <div class="text-muted small">Latest unpaid items</div>
+                    </div>
+
+                    <a href="{{ route('expenses.index', ['paid' => 0]) }}" class="btn btn-sm btn-outline-secondary">
+                        View all
+                    </a>
+                </div>
+
+                @php
+                  $unpaid = $unpaidExpenses ?? collect();
+                @endphp
+
+                @if($unpaid->isEmpty())
+                    <div class="text-muted small">✅ No unpaid expenses found.</div>
+                @else
+                    <div class="table-responsive">
+                        <table class="table table-sm table-striped table-hover mb-0 align-middle table-unpaid">
+                            <thead>
+                            <tr>
+                                <th style="width:110px;">Date</th>
+                                <th>Payee</th>
+                                <th style="width:140px;" class="text-end">Amount</th>
+                                <th style="width:110px;" class="text-end">Action</th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            @foreach($unpaid as $e)
+                                <tr>
+                                    <td class="text-nowrap">{{ $e->expense_date?->format('Y-m-d') ?? '-' }}</td>
+                                    <td>{{ $e->payee_name }}</td>
+                                    <td class="text-end">{{ number_format((float)$e->amount, 2) }}</td>
+                                    <td class="text-end">
+                                        <a href="{{ route('expenses.edit', $e) }}" class="btn btn-xs btn-outline-primary">
+                                            Edit
+                                        </a>
+                                    </td>
+                                </tr>
+                            @endforeach
+                            </tbody>
+                        </table>
+                    </div>
+                @endif
+
             </div>
         </div>
     </div>
