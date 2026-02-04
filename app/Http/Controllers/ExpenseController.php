@@ -131,13 +131,11 @@ class ExpenseController extends Controller
             'amount'               => ['required', 'numeric', 'min:0'],
             'cheque_no'            => ['nullable', 'string', 'max:80'],
             'reason'               => ['nullable', 'string', 'max:255'],
+            'is_paid'              => ['nullable', 'boolean'],
         ]);
 
-        $chequeId = PaymentMethod::where('name', 'Cheque')->value('id');
-        if ($chequeId && (int)$validated['payment_method_id'] !== (int)$chequeId) {
-            // Optional strict behavior:
-            // $validated['cheque_no'] = null;
-        }
+        // checkbox: if not sent -> false
+        $validated['is_paid'] = $request->boolean('is_paid');
 
         $validated['created_by'] = Auth::id();
 
@@ -158,6 +156,7 @@ class ExpenseController extends Controller
                 'amount' => (float)$expense->amount,
                 'cheque_no_present' => !empty($expense->cheque_no),
                 'reason_present' => !empty($expense->reason),
+                'is_paid' => (bool)$expense->is_paid,
             ]
         );
 
@@ -192,7 +191,10 @@ class ExpenseController extends Controller
             'amount'               => ['required', 'numeric', 'min:0'],
             'cheque_no'            => ['nullable', 'string', 'max:80'],
             'reason'               => ['nullable', 'string', 'max:255'],
+            'is_paid'              => ['nullable', 'boolean'],
         ]);
+
+        $validated['is_paid'] = $request->boolean('is_paid');
 
         $before = [
             'expense_date' => (string)$expense->expense_date,
@@ -202,6 +204,7 @@ class ExpenseController extends Controller
             'amount' => (float)$expense->amount,
             'cheque_no' => (string)($expense->cheque_no ?? ''),
             'reason' => (string)($expense->reason ?? ''),
+            'is_paid' => (bool)$expense->is_paid,
         ];
 
         $expense->update($validated);
@@ -214,6 +217,7 @@ class ExpenseController extends Controller
             'amount' => (float)$expense->amount,
             'cheque_no' => (string)($expense->cheque_no ?? ''),
             'reason' => (string)($expense->reason ?? ''),
+            'is_paid' => (bool)$expense->is_paid,
         ];
 
         Audit::log(
@@ -232,6 +236,7 @@ class ExpenseController extends Controller
                     'amount' => $before['amount'] !== $after['amount'],
                     'cheque_no' => $before['cheque_no'] !== $after['cheque_no'],
                     'reason' => $before['reason'] !== $after['reason'],
+                    'is_paid' => $before['is_paid'] !== $after['is_paid'],
                 ],
                 'before' => [
                     'expense_date' => $before['expense_date'],
@@ -240,6 +245,7 @@ class ExpenseController extends Controller
                     'amount' => $before['amount'],
                     'cheque_no_present' => $before['cheque_no'] !== '',
                     'reason_present' => $before['reason'] !== '',
+                    'is_paid' => $before['is_paid'],
                 ],
                 'after' => [
                     'expense_date' => $after['expense_date'],
@@ -248,6 +254,7 @@ class ExpenseController extends Controller
                     'amount' => $after['amount'],
                     'cheque_no_present' => $after['cheque_no'] !== '',
                     'reason_present' => $after['reason'] !== '',
+                    'is_paid' => $after['is_paid'],
                 ],
             ]
         );
@@ -265,6 +272,7 @@ class ExpenseController extends Controller
             'amount' => (float)$expense->amount,
             'cheque_no_present' => !empty($expense->cheque_no),
             'reason_present' => !empty($expense->reason),
+            'is_paid' => (bool)$expense->is_paid,
         ];
 
         $id = (string)$expense->id;
