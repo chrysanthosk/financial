@@ -40,6 +40,18 @@
       </div>
     </div>
 
+    <div class="form-group mb-3">
+      <div class="icheck-primary">
+        <input type="checkbox" id="remember_device" name="remember_device" value="1">
+        <label for="remember_device">
+          Remember this device for 30 days
+        </label>
+      </div>
+      <div class="text-muted small mt-1">
+        You will still need your password. 2FA will be requested again after 30 days (or if cookies are cleared).
+      </div>
+    </div>
+
     <div class="row mb-3">
       <div class="col-12">
         <button type="submit" class="btn btn-primary btn-block">Verify</button>
@@ -47,8 +59,8 @@
     </div>
   </form>
 
-  <form method="POST" action="{{ route('logout') }}">
+  <form method="POST" action="{{ route('two-factor.challenge.cancel') }}">
     @csrf
-    <button type="submit" class="btn btn-link p-0">Cancel and sign out</button>
+    <button type="submit" class="btn btn-link p-0">Cancel and go back to login</button>
   </form>
 @endsection
