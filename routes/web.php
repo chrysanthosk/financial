@@ -44,6 +44,9 @@ Route::get('/two-factor-challenge', [TwoFactorChallengeController::class, 'show'
 Route::post('/two-factor-challenge', [TwoFactorChallengeController::class, 'verify'])
     ->name('two-factor.challenge.verify');
 
+Route::post('/two-factor-challenge/cancel', [TwoFactorChallengeController::class, 'cancel'])
+    ->name('two-factor.challenge.cancel');
+
 /*
 |--------------------------------------------------------------------------
 | Dashboard
