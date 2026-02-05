@@ -8,7 +8,6 @@ use BaconQrCode\Renderer\Image\SvgImageBackEnd;
 use BaconQrCode\Renderer\RendererStyle\RendererStyle;
 use BaconQrCode\Writer;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Redirect;
 use Illuminate\Support\Str;
 
@@ -34,10 +33,14 @@ class TwoFactorController extends Controller
 
         $secret = $this->generateBase32Secret(24);
 
-        // Store temporarily until confirmed
-        $user->two_factor_secret = Crypt::encryptString($secret);
-        $user->two_factor_enabled = false;
+        // Because User model casts two_factor_secret as "encrypted",
+        // we store plaintext here and Laravel encrypts it.
+        $user->two_factor_secret = $secret;
         $user->two_factor_confirmed_at = null;
+
+        // Reset recovery codes until confirmed
+        $user->two_factor_recovery_codes = null;
+
         $user->save();
 
         $issuer = config('app.name', 'Financial');
@@ -89,12 +92,13 @@ class TwoFactorController extends Controller
             return Redirect::route('profile.2fa.show')->with('status', 'Please generate a QR first.');
         }
 
-        $secret = Crypt::decryptString($user->two_factor_secret);
-
         if (!class_exists(\OTPHP\TOTP::class)) {
             return Redirect::route('profile.2fa.show')
                 ->with('status', 'Missing OTP library. Run: composer require spomky-labs/otphp');
         }
+
+        // Because of encrypted cast, this is already plaintext
+        $secret = (string)$user->two_factor_secret;
 
         $issuer = config('app.name', 'Financial');
         $label = $user->email ?: ('user-' . $user->id);
@@ -125,16 +129,15 @@ class TwoFactorController extends Controller
             return Redirect::back()->withErrors(['code' => 'Invalid code. Please try again.']);
         }
 
-        $user->two_factor_enabled = true;
         $user->two_factor_confirmed_at = now();
 
-        // Generate recovery codes
+        // Recovery codes as array (encrypted cast will store safely)
         $recoveryCodes = [];
         for ($i = 0; $i < 10; $i++) {
             $recoveryCodes[] = strtoupper(Str::random(10)) . '-' . strtoupper(Str::random(10));
         }
+        $user->two_factor_recovery_codes = $recoveryCodes;
 
-        $user->two_factor_recovery_codes = Crypt::encryptString(json_encode($recoveryCodes));
         $user->save();
 
         Audit::log(
@@ -157,7 +160,6 @@ class TwoFactorController extends Controller
             'current_password' => ['required', 'current_password'],
         ]);
 
-        $user->two_factor_enabled = false;
         $user->two_factor_secret = null;
         $user->two_factor_recovery_codes = null;
         $user->two_factor_confirmed_at = null;
@@ -179,7 +181,7 @@ class TwoFactorController extends Controller
     {
         $user = $request->user();
 
-        if (!$user->two_factor_enabled || !$user->two_factor_secret) {
+        if (!$user->hasTwoFactorEnabled()) {
             return Redirect::route('profile.2fa.show')->with('status', 'Enable 2FA first.');
         }
 
@@ -188,7 +190,7 @@ class TwoFactorController extends Controller
             $recoveryCodes[] = strtoupper(Str::random(10)) . '-' . strtoupper(Str::random(10));
         }
 
-        $user->two_factor_recovery_codes = Crypt::encryptString(json_encode($recoveryCodes));
+        $user->two_factor_recovery_codes = $recoveryCodes;
         $user->save();
 
         Audit::log(

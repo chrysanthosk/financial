@@ -7,7 +7,6 @@ use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cookie;
-use Illuminate\Support\Facades\Crypt;
 
 class TwoFactorChallengeController extends Controller
 {
@@ -16,7 +15,7 @@ class TwoFactorChallengeController extends Controller
 
     public function show(Request $request)
     {
-        if (!session()->has('2fa:user:id')) {
+        if (!$request->session()->has('2fa:user:id')) {
             return redirect()->route('login');
         }
 
@@ -25,7 +24,6 @@ class TwoFactorChallengeController extends Controller
 
     public function cancel(Request $request)
     {
-        // user is not authenticated here; just clear pending flags
         $request->session()->forget(['2fa:user:id', '2fa:remember']);
         $request->session()->regenerateToken();
 
@@ -39,22 +37,20 @@ class TwoFactorChallengeController extends Controller
             'remember_device' => ['nullable', 'boolean'],
         ]);
 
-        $userId = session('2fa:user:id');
+        $userId = (int) $request->session()->get('2fa:user:id');
         if (!$userId) {
             return redirect()->route('login');
         }
 
         $user = User::find($userId);
         if (!$user) {
-            session()->forget(['2fa:user:id', '2fa:remember']);
+            $request->session()->forget(['2fa:user:id', '2fa:remember']);
             return redirect()->route('login');
         }
 
-        $twoFaEnabled = (bool)($user->two_factor_enabled ?? false)
-            && !empty($user->two_factor_secret);
-
-        if (!$twoFaEnabled) {
-            session()->forget(['2fa:user:id', '2fa:remember']);
+        // If 2FA not enabled anymore, just log in
+        if (!$user->hasTwoFactorEnabled()) {
+            $request->session()->forget(['2fa:user:id', '2fa:remember']);
             Auth::login($user);
             $request->session()->regenerate();
             return redirect()->intended(route('dashboard'));
@@ -65,7 +61,8 @@ class TwoFactorChallengeController extends Controller
                 ->with('status', 'Missing OTP library. Run: composer require spomky-labs/otphp');
         }
 
-        $secret = Crypt::decryptString($user->two_factor_secret);
+        // Because of encrypted cast in User, this is already plaintext
+        $secret = (string) $user->two_factor_secret;
 
         $issuer = config('app.name', 'Financial');
         $label = $user->email ?: ('user-' . $user->id);
@@ -77,6 +74,7 @@ class TwoFactorChallengeController extends Controller
         $code = $request->input('code');
         $now = time();
 
+        // Allow +/- 30s drift
         $valid =
             $totp->verify($code, $now) ||
             $totp->verify($code, $now - 30) ||
@@ -86,15 +84,13 @@ class TwoFactorChallengeController extends Controller
             return back()->withErrors(['code' => 'Invalid authentication code.'])->withInput();
         }
 
-        $rememberLogin = (bool) session('2fa:remember', false);
-        session()->forget(['2fa:user:id', '2fa:remember']);
+        $rememberLogin = (bool) $request->session()->get('2fa:remember', false);
+        $request->session()->forget(['2fa:user:id', '2fa:remember']);
 
         Auth::login($user, $rememberLogin);
         $request->session()->regenerate();
 
-        // If user checked "remember this device" -> trust for 30 days
-        $rememberDevice = (bool)$request->boolean('remember_device');
-        if ($rememberDevice) {
+        if ($request->boolean('remember_device')) {
             $this->issueTrustedDeviceCookie($request, (int)$user->id);
         }
 
@@ -103,8 +99,7 @@ class TwoFactorChallengeController extends Controller
 
     private function issueTrustedDeviceCookie(Request $request, int $userId): void
     {
-        // token stored only in cookie; hash stored in DB
-        $token = bin2hex(random_bytes(32)); // 64 chars
+        $token = bin2hex(random_bytes(32));
         $tokenHash = hash('sha256', $token);
 
         $row = TwoFactorTrustedDevice::create([
@@ -116,9 +111,7 @@ class TwoFactorChallengeController extends Controller
             'expires_at' => now()->addDays(self::TRUST_DAYS),
         ]);
 
-        // Cookie holds: "{deviceId}.{token}"
         $cookieValue = $row->id . '.' . $token;
-
         $minutes = self::TRUST_DAYS * 24 * 60;
 
         Cookie::queue(
@@ -128,7 +121,7 @@ class TwoFactorChallengeController extends Controller
                 minutes: $minutes,
                 path: '/',
                 domain: null,
-                secure: (bool)config('session.secure', false), // secure in https
+                secure: true,     // you are HTTPS
                 httpOnly: true,
                 raw: false,
                 sameSite: 'lax'

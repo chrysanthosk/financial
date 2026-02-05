@@ -12,11 +12,6 @@
     </a>
   </div>
 
-  {{-- NOTE:
-       We do NOT show session('status') here because layouts/app.blade.php already shows it.
-       Otherwise you get duplicate success messages.
-  --}}
-
   @if($errors->any())
     <div class="alert alert-danger">Please fix the errors below.</div>
   @endif
@@ -28,7 +23,7 @@
         <div class="card-header"><strong>Setup</strong></div>
         <div class="card-body">
 
-          @if(!$user->two_factor_enabled)
+          @if(!$user->hasTwoFactorEnabled())
 
             <p class="text-muted mb-3">
               Generate a QR code, scan it with Authy / Google Authenticator, then enter the 6-digit code to confirm.
@@ -45,7 +40,6 @@
               <div class="mb-3">
                 <div class="mb-2"><strong>Scan this QR</strong></div>
 
-                {{-- Works for both data:image/svg+xml;base64,... and data:image/png;base64,... --}}
                 <div class="d-inline-block p-2 rounded border qr-wrap">
                   <img
                     src="{{ $qrPngDataUri }}"
@@ -91,6 +85,9 @@
           @else
             <div class="alert alert-success">
               <strong>2FA is enabled</strong>.
+              <div class="text-muted small">
+                Enabled since: {{ optional($user->two_factor_confirmed_at)->format('Y-m-d H:i') }}
+              </div>
             </div>
 
             <form method="POST" action="{{ route('profile.2fa.disable') }}"
@@ -110,7 +107,6 @@
               </button>
             </form>
 
-            {{-- Optional: Regenerate recovery codes --}}
             @if(\Illuminate\Support\Facades\Route::has('profile.2fa.recovery.regenerate'))
               <hr>
               <form method="POST" action="{{ route('profile.2fa.recovery.regenerate') }}"
@@ -132,7 +128,7 @@
       <div class="card">
         <div class="card-header d-flex justify-content-between align-items-center">
           <strong>Recovery codes</strong>
-          @if($user->two_factor_enabled && $user->two_factor_recovery_codes)
+          @if($user->hasTwoFactorEnabled() && !empty($user->two_factor_recovery_codes))
             <button id="copyRecoveryBtn" type="button" class="btn btn-xs btn-outline-secondary">
               <i class="fas fa-copy"></i> Copy
             </button>
@@ -140,11 +136,9 @@
         </div>
 
         <div class="card-body">
-          @if($user->two_factor_enabled && $user->two_factor_recovery_codes)
+          @if($user->hasTwoFactorEnabled() && !empty($user->two_factor_recovery_codes))
             @php
-              try {
-                $codes = json_decode(\Illuminate\Support\Facades\Crypt::decryptString($user->two_factor_recovery_codes), true) ?: [];
-              } catch (\Throwable $e) { $codes = []; }
+              $codes = is_array($user->two_factor_recovery_codes) ? $user->two_factor_recovery_codes : [];
             @endphp
 
             <p class="text-muted">
@@ -171,7 +165,7 @@
   </div>
 </div>
 
-@if($user->two_factor_enabled && $user->two_factor_recovery_codes)
+@if($user->hasTwoFactorEnabled() && !empty($user->two_factor_recovery_codes))
 <script>
 (function () {
   const btn = document.getElementById('copyRecoveryBtn');
