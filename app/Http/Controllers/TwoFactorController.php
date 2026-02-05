@@ -2,32 +2,24 @@
 
 namespace App\Http\Controllers;
 
-use App\Support\Audit;
-use BaconQrCode\Renderer\ImageRenderer;
-use BaconQrCode\Renderer\Image\SvgImageBackEnd;
-use BaconQrCode\Renderer\RendererStyle\RendererStyle;
-use BaconQrCode\Writer;
+use App\Models\TwoFactorTrustedDevice;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Redirect;
 use Illuminate\Support\Str;
 
-class TwoFactorController extends Controller
+class TwoFactorChallengeController extends Controller
 {
     public function show(Request $request)
     {
-        $user = $request->user();
+        if (!session()->has('2fa:user:id')) {
+            return redirect()->route('login');
+        }
 
-        return view('profile.2fa', [
-            'user' => $user,
-            'qrPngDataUri' => null,
-            'secret' => null,
-        ]);
+        return view('auth.two-factor-challenge');
     }
 
-    /**
-     * Generate NEW secret and return QR (data URI) for confirmation.
-     */
-    public function enable(Request $request)
+    public function cancel(Request $request)
     {
         $user = $request->user();
 
@@ -70,30 +62,23 @@ class TwoFactorController extends Controller
             targetId: (string)$user->id
         );
 
-        return view('profile.2fa', [
-            'user' => $user,
-            'qrPngDataUri' => $qrDataUri,
-            'secret' => $secret,
-        ]);
+        return redirect()->route('login')->with('status', 'Signed out.');
     }
 
-    /**
-     * Confirm code and enable 2FA + generate recovery codes.
-     */
-    public function confirm(Request $request)
+    public function verify(Request $request)
     {
-        $user = $request->user();
-
         $request->validate([
             'code' => ['required', 'digits:6'],
+            'remember_device' => ['nullable', 'boolean'],
         ]);
 
-        if (!$user->two_factor_secret) {
-            return Redirect::route('profile.2fa.show')->with('status', 'Please generate a QR first.');
+        $userId = session('2fa:user:id');
+        if (!$userId) {
+            return redirect()->route('login');
         }
 
         if (!class_exists(\OTPHP\TOTP::class)) {
-            return Redirect::route('profile.2fa.show')
+            return redirect()->route('login')
                 ->with('status', 'Missing OTP library. Run: composer require spomky-labs/otphp');
         }
 
@@ -107,7 +92,6 @@ class TwoFactorController extends Controller
         $totp->setIssuer($issuer);
         $totp->setLabel($label);
 
-        // Allow +/- 30s drift
         $code = $request->input('code');
         $now = time();
 
@@ -117,16 +101,7 @@ class TwoFactorController extends Controller
             $totp->verify($code, $now + 30);
 
         if (!$valid) {
-            Audit::log(
-                action: 'security.2fa_confirm_failed',
-                category: 'security',
-                request: $request,
-                userId: $user->id,
-                targetType: 'User',
-                targetId: (string)$user->id
-            );
-
-            return Redirect::back()->withErrors(['code' => 'Invalid code. Please try again.']);
+            return back()->withErrors(['code' => 'Invalid authentication code.'])->withInput();
         }
 
         $user->two_factor_confirmed_at = now();
@@ -140,19 +115,16 @@ class TwoFactorController extends Controller
 
         $user->save();
 
-        Audit::log(
-            action: 'security.2fa_enabled',
-            category: 'security',
-            request: $request,
-            userId: $user->id,
-            targetType: 'User',
-            targetId: (string)$user->id
-        );
+        // If user checked "remember this device" -> trust for N days
+        $rememberDevice = (bool)$request->boolean('remember_device');
+        if ($rememberDevice) {
+            $this->issueTrustedDeviceCookie($request, (int)$user->id);
+        }
 
-        return Redirect::route('profile.2fa.show')->with('status', '2FA enabled. Save your recovery codes.');
+        return redirect()->intended(route('dashboard'));
     }
 
-    public function disable(Request $request)
+    private function trustedCookieName(): string
     {
         $user = $request->user();
 
@@ -177,7 +149,7 @@ class TwoFactorController extends Controller
         return Redirect::route('profile.2fa.show')->with('status', '2FA disabled.');
     }
 
-    public function regenerateRecoveryCodes(Request $request)
+    private function trustDays(): int
     {
         $user = $request->user();
 
@@ -205,26 +177,38 @@ class TwoFactorController extends Controller
         return Redirect::route('profile.2fa.show')->with('status', 'Recovery codes regenerated. Save the new codes.');
     }
 
-    private function makeQrSvgDataUri(string $text, int $size = 220): string
+    private function issueTrustedDeviceCookie(Request $request, int $userId): void
     {
-        $renderer = new ImageRenderer(
-            new RendererStyle($size),
-            new SvgImageBackEnd()
+        // token stored only in cookie; hash stored in DB
+        $token = bin2hex(random_bytes(32)); // 64 chars
+        $tokenHash = hash('sha256', $token);
+
+        $row = TwoFactorTrustedDevice::create([
+            'user_id' => $userId,
+            'token_hash' => $tokenHash,
+            'ip_address' => $request->ip(),
+            'user_agent' => substr((string)$request->userAgent(), 0, 255),
+            'last_used_at' => now(),
+            'expires_at' => now()->addDays($this->trustDays()),
+        ]);
+
+        // Cookie holds: "{deviceId}.{token}"
+        $cookieValue = $row->id . '.' . $token;
+
+        $minutes = $this->trustDays() * 24 * 60;
+
+        Cookie::queue(
+            Cookie::make(
+                name: $this->trustedCookieName(),
+                value: $cookieValue,
+                minutes: $minutes,
+                path: '/',
+                domain: null,
+                secure: (bool) config('session.secure', false),
+                httpOnly: true,
+                raw: false,
+                sameSite: 'lax'
+            )
         );
-
-        $writer = new Writer($renderer);
-        $svg = $writer->writeString($text);
-
-        return 'data:image/svg+xml;base64,' . base64_encode($svg);
-    }
-
-    private function generateBase32Secret(int $length = 24): string
-    {
-        $alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
-        $secret = '';
-        for ($i = 0; $i < $length; $i++) {
-            $secret .= $alphabet[random_int(0, strlen($alphabet) - 1)];
-        }
-        return $secret;
     }
 }
