@@ -7,8 +7,6 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class TwoFactorTrustedDevice extends Model
 {
-    protected $table = 'two_factor_trusted_devices';
-
     protected $fillable = [
         'user_id',
         'token_hash',

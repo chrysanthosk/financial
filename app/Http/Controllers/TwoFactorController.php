@@ -2,98 +2,86 @@
 
 namespace App\Http\Controllers;
 
-use App\Support\Audit;
-use BaconQrCode\Renderer\ImageRenderer;
-use BaconQrCode\Renderer\Image\SvgImageBackEnd;
-use BaconQrCode\Renderer\RendererStyle\RendererStyle;
-use BaconQrCode\Writer;
+use App\Models\TwoFactorTrustedDevice;
+use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cookie;
 use Illuminate\Support\Facades\Crypt;
-use Illuminate\Support\Facades\Redirect;
-use Illuminate\Support\Str;
 
-class TwoFactorController extends Controller
+class TwoFactorChallengeController extends Controller
 {
     public function show(Request $request)
     {
-        $user = $request->user();
-
-        return view('profile.2fa', [
-            'user' => $user,
-            'qrPngDataUri' => null,
-            'secret' => null,
-        ]);
-    }
-
-    /**
-     * Generate NEW secret and return QR (data URI) for confirmation.
-     */
-    public function enable(Request $request)
-    {
-        $user = $request->user();
-
-        $secret = $this->generateBase32Secret(24);
-
-        // Store temporarily until confirmed
-        $user->two_factor_secret = Crypt::encryptString($secret);
-        $user->two_factor_enabled = false;
-        $user->two_factor_confirmed_at = null;
-        $user->save();
-
-        $issuer = config('app.name', 'Financial');
-        $label = $user->email ?: ('user-' . $user->id);
-
-        $otpauth = sprintf(
-            'otpauth://totp/%s:%s?secret=%s&issuer=%s',
-            rawurlencode($issuer),
-            rawurlencode($label),
-            $secret,
-            rawurlencode($issuer)
-        );
-
-        if (!class_exists(Writer::class)) {
-            return Redirect::route('profile.2fa.show')
-                ->with('status', 'Missing QR library. Run: composer require bacon/bacon-qr-code:^3.0');
+        if (!session()->has('2fa:user:id')) {
+            return redirect()->route('login');
         }
 
-        $qrDataUri = $this->makeQrSvgDataUri($otpauth, 220);
-
-        Audit::log(
-            action: 'security.2fa_qr_generated',
-            category: 'security',
-            request: $request,
-            userId: $user->id,
-            targetType: 'User',
-            targetId: (string)$user->id
-        );
-
-        return view('profile.2fa', [
-            'user' => $user,
-            'qrPngDataUri' => $qrDataUri,
-            'secret' => $secret,
-        ]);
+        return view('auth.two-factor-challenge');
     }
 
-    /**
-     * Confirm code and enable 2FA + generate recovery codes.
-     */
-    public function confirm(Request $request)
+    public function cancel(Request $request)
     {
-        $user = $request->user();
+        // user is not authenticated here; just clear pending flags
+        $request->session()->forget(['2fa:user:id', '2fa:remember']);
+        $request->session()->regenerateToken();
 
+        return redirect()->route('login')->with('status', 'Signed out.');
+    }
+
+    public function verify(Request $request)
+    {
         $request->validate([
             'code' => ['required', 'digits:6'],
+            'remember_device' => ['nullable', 'boolean'],
         ]);
 
-        if (!$user->two_factor_secret) {
-            return Redirect::route('profile.2fa.show')->with('status', 'Please generate a QR first.');
+        $userId = session('2fa:user:id');
+        if (!$userId) {
+            return redirect()->route('login');
         }
 
-        $secret = Crypt::decryptString($user->two_factor_secret);
+        $user = User::find($userId);
+        if (!$user) {
+            session()->forget(['2fa:user:id', '2fa:remember']);
+            return redirect()->route('login');
+        }
+
+        $twoFaEnabled = method_exists($user, 'hasTwoFactorEnabled')
+            ? $user->hasTwoFactorEnabled()
+            : false;
+
+        if (!$twoFaEnabled) {
+            session()->forget(['2fa:user:id', '2fa:remember']);
+            Auth::login($user);
+            $request->session()->regenerate();
+            return redirect()->intended(route('dashboard'));
+        }
 
         if (!class_exists(\OTPHP\TOTP::class)) {
-            return Redirect::route('profile.2fa.show')
+            return redirect()->route('login')
                 ->with('status', 'Missing OTP library. Run: composer require spomky-labs/otphp');
+        }
+
+        // If you are using encrypted cast, $user->two_factor_secret is already decrypted.
+        // But to stay compatible with older code, we keep decryptString fallback.
+        $secret = $user->two_factor_secret;
+        if (!is_string($secret) || $secret === '') {
+            return redirect()->route('login')->with('status', '2FA secret missing. Please re-enable 2FA.');
+        }
+
+        // If someone stored it manually encrypted in DB without cast, try decryptString
+        if (str_starts_with($secret, 'eyJ') === false && str_contains($secret, ':') === false) {
+            // do nothing
+        }
+
+        // Some older versions stored encrypted string manually
+        if (preg_match('/^[A-Za-z0-9+\/=]+$/', $secret) && strlen($secret) > 40) {
+            try {
+                $secret = Crypt::decryptString($secret);
+            } catch (\Throwable $e) {
+                // ignore; cast likely already decrypted it
+            }
         }
 
         $issuer = config('app.name', 'Financial');
@@ -103,7 +91,6 @@ class TwoFactorController extends Controller
         $totp->setIssuer($issuer);
         $totp->setLabel($label);
 
-        // Allow +/- 30s drift
         $code = $request->input('code');
         $now = time();
 
@@ -113,116 +100,66 @@ class TwoFactorController extends Controller
             $totp->verify($code, $now + 30);
 
         if (!$valid) {
-            Audit::log(
-                action: 'security.2fa_confirm_failed',
-                category: 'security',
-                request: $request,
-                userId: $user->id,
-                targetType: 'User',
-                targetId: (string)$user->id
-            );
-
-            return Redirect::back()->withErrors(['code' => 'Invalid code. Please try again.']);
+            return back()->withErrors(['code' => 'Invalid authentication code.'])->withInput();
         }
 
-        $user->two_factor_enabled = true;
-        $user->two_factor_confirmed_at = now();
+        $rememberLogin = (bool) session('2fa:remember', false);
+        session()->forget(['2fa:user:id', '2fa:remember']);
 
-        // Generate recovery codes
-        $recoveryCodes = [];
-        for ($i = 0; $i < 10; $i++) {
-            $recoveryCodes[] = strtoupper(Str::random(10)) . '-' . strtoupper(Str::random(10));
+        Auth::login($user, $rememberLogin);
+        $request->session()->regenerate();
+
+        // If user checked "remember this device" -> trust for N days
+        $rememberDevice = (bool)$request->boolean('remember_device');
+        if ($rememberDevice) {
+            $this->issueTrustedDeviceCookie($request, (int)$user->id);
         }
 
-        $user->two_factor_recovery_codes = Crypt::encryptString(json_encode($recoveryCodes));
-        $user->save();
-
-        Audit::log(
-            action: 'security.2fa_enabled',
-            category: 'security',
-            request: $request,
-            userId: $user->id,
-            targetType: 'User',
-            targetId: (string)$user->id
-        );
-
-        return Redirect::route('profile.2fa.show')->with('status', '2FA enabled. Save your recovery codes.');
+        return redirect()->intended(route('dashboard'));
     }
 
-    public function disable(Request $request)
+    private function trustedCookieName(): string
     {
-        $user = $request->user();
+        return (string) config('twofactor.cookie.name', 'tfa_trusted_device');
+    }
 
-        $request->validate([
-            'current_password' => ['required', 'current_password'],
+    private function trustDays(): int
+    {
+        return (int) config('twofactor.trust_days', 30);
+    }
+
+    private function issueTrustedDeviceCookie(Request $request, int $userId): void
+    {
+        // token stored only in cookie; hash stored in DB
+        $token = bin2hex(random_bytes(32)); // 64 chars
+        $tokenHash = hash('sha256', $token);
+
+        $row = TwoFactorTrustedDevice::create([
+            'user_id' => $userId,
+            'token_hash' => $tokenHash,
+            'ip_address' => $request->ip(),
+            'user_agent' => substr((string)$request->userAgent(), 0, 255),
+            'last_used_at' => now(),
+            'expires_at' => now()->addDays($this->trustDays()),
         ]);
 
-        $user->two_factor_enabled = false;
-        $user->two_factor_secret = null;
-        $user->two_factor_recovery_codes = null;
-        $user->two_factor_confirmed_at = null;
-        $user->save();
+        // Cookie holds: "{deviceId}.{token}"
+        $cookieValue = $row->id . '.' . $token;
 
-        Audit::log(
-            action: 'security.2fa_disabled',
-            category: 'security',
-            request: $request,
-            userId: $user->id,
-            targetType: 'User',
-            targetId: (string)$user->id
+        $minutes = $this->trustDays() * 24 * 60;
+
+        Cookie::queue(
+            Cookie::make(
+                name: $this->trustedCookieName(),
+                value: $cookieValue,
+                minutes: $minutes,
+                path: '/',
+                domain: null,
+                secure: (bool) config('session.secure', false),
+                httpOnly: true,
+                raw: false,
+                sameSite: 'lax'
+            )
         );
-
-        return Redirect::route('profile.2fa.show')->with('status', '2FA disabled.');
-    }
-
-    public function regenerateRecoveryCodes(Request $request)
-    {
-        $user = $request->user();
-
-        if (!$user->two_factor_enabled || !$user->two_factor_secret) {
-            return Redirect::route('profile.2fa.show')->with('status', 'Enable 2FA first.');
-        }
-
-        $recoveryCodes = [];
-        for ($i = 0; $i < 10; $i++) {
-            $recoveryCodes[] = strtoupper(Str::random(10)) . '-' . strtoupper(Str::random(10));
-        }
-
-        $user->two_factor_recovery_codes = Crypt::encryptString(json_encode($recoveryCodes));
-        $user->save();
-
-        Audit::log(
-            action: 'security.2fa_recovery_regenerated',
-            category: 'security',
-            request: $request,
-            userId: $user->id,
-            targetType: 'User',
-            targetId: (string)$user->id
-        );
-
-        return Redirect::route('profile.2fa.show')->with('status', 'Recovery codes regenerated. Save the new codes.');
-    }
-
-    private function makeQrSvgDataUri(string $text, int $size = 220): string
-    {
-        $renderer = new ImageRenderer(
-            new RendererStyle($size),
-            new SvgImageBackEnd()
-        );
-
-        $writer = new Writer($renderer);
-        $svg = $writer->writeString($text);
-
-        return 'data:image/svg+xml;base64,' . base64_encode($svg);
-    }
-
-    private function generateBase32Secret(int $length = 24): string
-    {
-        $alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
-        $secret = '';
-        for ($i = 0; $i < $length; $i++) {
-            $secret .= $alphabet[random_int(0, strlen($alphabet) - 1)];
-        }
-        return $secret;
     }
 }

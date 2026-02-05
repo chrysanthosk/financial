@@ -10,8 +10,6 @@ use Illuminate\Support\Facades\Cookie;
 
 class AuthenticatedSessionController extends Controller
 {
-    private const TRUSTED_COOKIE = 'tfa_trusted_device';
-
     public function create()
     {
         return view('auth.login');
@@ -37,7 +35,9 @@ class AuthenticatedSessionController extends Controller
         $user = Auth::user();
 
         // If 2FA is enabled -> potentially force challenge
-        $twoFaEnabled = (bool)($user->two_factor_enabled ?? false) && !empty($user->two_factor_secret);
+        $twoFaEnabled = $user && method_exists($user, 'hasTwoFactorEnabled')
+            ? $user->hasTwoFactorEnabled()
+            : false;
 
         if ($twoFaEnabled) {
             // If trusted device cookie is valid -> skip challenge
@@ -70,8 +70,8 @@ class AuthenticatedSessionController extends Controller
     {
         Auth::logout();
 
-        // Optional (recommended): logging out should "untrust" this browser for that user session
-        Cookie::queue(Cookie::forget(self::TRUSTED_COOKIE));
+        // Optional (recommended): logging out should "untrust" this browser
+        Cookie::queue(Cookie::forget($this->trustedCookieName()));
 
         $request->session()->invalidate();
         $request->session()->regenerateToken();
@@ -79,9 +79,14 @@ class AuthenticatedSessionController extends Controller
         return redirect()->route('login');
     }
 
+    private function trustedCookieName(): string
+    {
+        return (string) config('twofactor.cookie.name', 'tfa_trusted_device');
+    }
+
     private function trustedDeviceIsValidForUser(Request $request, int $userId): bool
     {
-        $cookie = $request->cookie(self::TRUSTED_COOKIE);
+        $cookie = $request->cookie($this->trustedCookieName());
         if (!$cookie) {
             return false;
         }
@@ -89,14 +94,14 @@ class AuthenticatedSessionController extends Controller
         // Cookie format: "{deviceId}.{token}"
         $parts = explode('.', (string)$cookie, 2);
         if (count($parts) !== 2) {
-            Cookie::queue(Cookie::forget(self::TRUSTED_COOKIE));
+            Cookie::queue(Cookie::forget($this->trustedCookieName()));
             return false;
         }
 
         [$deviceIdRaw, $token] = $parts;
 
         if (!ctype_digit($deviceIdRaw) || $token === '') {
-            Cookie::queue(Cookie::forget(self::TRUSTED_COOKIE));
+            Cookie::queue(Cookie::forget($this->trustedCookieName()));
             return false;
         }
 
@@ -110,16 +115,16 @@ class AuthenticatedSessionController extends Controller
             ->first();
 
         if (!$row) {
-            Cookie::queue(Cookie::forget(self::TRUSTED_COOKIE));
+            Cookie::queue(Cookie::forget($this->trustedCookieName()));
             return false;
         }
 
         if (!hash_equals((string)$row->token_hash, (string)$tokenHash)) {
-            Cookie::queue(Cookie::forget(self::TRUSTED_COOKIE));
+            Cookie::queue(Cookie::forget($this->trustedCookieName()));
             return false;
         }
 
-        // Touch last_used_at (nice for admin/audit later)
+        // Touch last_used_at
         $row->last_used_at = now();
         $row->save();
 
