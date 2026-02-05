@@ -35,11 +35,8 @@ class AuthenticatedSessionController extends Controller
         $user = Auth::user();
 
         // If 2FA is enabled -> potentially force challenge
-        $twoFaEnabled = $user && method_exists($user, 'hasTwoFactorEnabled')
-            ? $user->hasTwoFactorEnabled()
-            : false;
+        if ($user && $user->hasTwoFactorEnabled()) {
 
-        if ($twoFaEnabled) {
             // If trusted device cookie is valid -> skip challenge
             if ($this->trustedDeviceIsValidForUser($request, (int)$user->id)) {
                 return redirect()->intended(route('dashboard'));
@@ -70,8 +67,8 @@ class AuthenticatedSessionController extends Controller
     {
         Auth::logout();
 
-        // Optional (recommended): logging out should "untrust" this browser
-        Cookie::queue(Cookie::forget($this->trustedCookieName()));
+        // Recommended: logout should untrust this browser
+        Cookie::queue(Cookie::forget(self::TRUSTED_COOKIE));
 
         $request->session()->invalidate();
         $request->session()->regenerateToken();
@@ -124,7 +121,6 @@ class AuthenticatedSessionController extends Controller
             return false;
         }
 
-        // Touch last_used_at
         $row->last_used_at = now();
         $row->save();
 
