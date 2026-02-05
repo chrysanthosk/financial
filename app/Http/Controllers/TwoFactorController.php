@@ -2,31 +2,35 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\TwoFactorTrustedDevice;
-use App\Models\User;
+use App\Support\Audit;
+use BaconQrCode\Renderer\ImageRenderer;
+use BaconQrCode\Renderer\Image\SvgImageBackEnd;
+use BaconQrCode\Renderer\RendererStyle\RendererStyle;
+use BaconQrCode\Writer;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Redirect;
 use Illuminate\Support\Str;
 
-class TwoFactorChallengeController extends Controller
+class TwoFactorController extends Controller
 {
     public function show(Request $request)
     {
-        if (!session()->has('2fa:user:id')) {
-            return redirect()->route('login');
-        }
+        $user = $request->user();
 
-        return view('auth.two-factor-challenge');
+        return view('profile.2fa', [
+            'user' => $user,
+            'qrPngDataUri' => null,
+            'secret' => null,
+        ]);
     }
 
-    public function cancel(Request $request)
+    public function enable(Request $request)
     {
         $user = $request->user();
 
         $secret = $this->generateBase32Secret(24);
 
-        // Because User model casts two_factor_secret as "encrypted",
-        // we store plaintext here and Laravel encrypts it.
+        // User model casts two_factor_secret as encrypted => assign plaintext
         $user->two_factor_secret = $secret;
         $user->two_factor_confirmed_at = null;
 
@@ -36,7 +40,7 @@ class TwoFactorChallengeController extends Controller
         $user->save();
 
         $issuer = config('app.name', 'Financial');
-        $label = $user->email ?: ('user-' . $user->id);
+        $label  = $user->email ?: ('user-' . $user->id);
 
         $otpauth = sprintf(
             'otpauth://totp/%s:%s?secret=%s&issuer=%s',
@@ -62,31 +66,35 @@ class TwoFactorChallengeController extends Controller
             targetId: (string)$user->id
         );
 
-        return redirect()->route('login')->with('status', 'Signed out.');
+        return view('profile.2fa', [
+            'user' => $user,
+            'qrPngDataUri' => $qrDataUri,
+            'secret' => $secret,
+        ]);
     }
 
-    public function verify(Request $request)
+    public function confirm(Request $request)
     {
+        $user = $request->user();
+
         $request->validate([
             'code' => ['required', 'digits:6'],
-            'remember_device' => ['nullable', 'boolean'],
         ]);
 
-        $userId = session('2fa:user:id');
-        if (!$userId) {
-            return redirect()->route('login');
+        if (!$user->two_factor_secret) {
+            return Redirect::route('profile.2fa.show')->with('status', 'Please generate a QR first.');
         }
 
         if (!class_exists(\OTPHP\TOTP::class)) {
-            return redirect()->route('login')
+            return Redirect::route('profile.2fa.show')
                 ->with('status', 'Missing OTP library. Run: composer require spomky-labs/otphp');
         }
 
-        // Because of encrypted cast, this is already plaintext
-        $secret = (string)$user->two_factor_secret;
+        // encrypted cast => already plaintext
+        $secret = (string) $user->two_factor_secret;
 
         $issuer = config('app.name', 'Financial');
-        $label = $user->email ?: ('user-' . $user->id);
+        $label  = $user->email ?: ('user-' . $user->id);
 
         $totp = \OTPHP\TOTP::create($secret);
         $totp->setIssuer($issuer);
@@ -101,30 +109,42 @@ class TwoFactorChallengeController extends Controller
             $totp->verify($code, $now + 30);
 
         if (!$valid) {
-            return back()->withErrors(['code' => 'Invalid authentication code.'])->withInput();
+            Audit::log(
+                action: 'security.2fa_confirm_failed',
+                category: 'security',
+                request: $request,
+                userId: $user->id,
+                targetType: 'User',
+                targetId: (string)$user->id
+            );
+
+            return Redirect::back()->withErrors(['code' => 'Invalid code. Please try again.']);
         }
 
         $user->two_factor_confirmed_at = now();
 
-        // Recovery codes as array (encrypted cast will store safely)
         $recoveryCodes = [];
         for ($i = 0; $i < 10; $i++) {
             $recoveryCodes[] = strtoupper(Str::random(10)) . '-' . strtoupper(Str::random(10));
         }
-        $user->two_factor_recovery_codes = $recoveryCodes;
 
+        // encrypted:array cast => assign array directly
+        $user->two_factor_recovery_codes = $recoveryCodes;
         $user->save();
 
-        // If user checked "remember this device" -> trust for N days
-        $rememberDevice = (bool)$request->boolean('remember_device');
-        if ($rememberDevice) {
-            $this->issueTrustedDeviceCookie($request, (int)$user->id);
-        }
+        Audit::log(
+            action: 'security.2fa_enabled',
+            category: 'security',
+            request: $request,
+            userId: $user->id,
+            targetType: 'User',
+            targetId: (string)$user->id
+        );
 
-        return redirect()->intended(route('dashboard'));
+        return Redirect::route('profile.2fa.show')->with('status', '2FA enabled. Save your recovery codes.');
     }
 
-    private function trustedCookieName(): string
+    public function disable(Request $request)
     {
         $user = $request->user();
 
@@ -149,7 +169,7 @@ class TwoFactorChallengeController extends Controller
         return Redirect::route('profile.2fa.show')->with('status', '2FA disabled.');
     }
 
-    private function trustDays(): int
+    public function regenerateRecoveryCodes(Request $request)
     {
         $user = $request->user();
 
@@ -177,38 +197,22 @@ class TwoFactorChallengeController extends Controller
         return Redirect::route('profile.2fa.show')->with('status', 'Recovery codes regenerated. Save the new codes.');
     }
 
-    private function issueTrustedDeviceCookie(Request $request, int $userId): void
+    private function makeQrSvgDataUri(string $text, int $size = 220): string
     {
-        // token stored only in cookie; hash stored in DB
-        $token = bin2hex(random_bytes(32)); // 64 chars
-        $tokenHash = hash('sha256', $token);
+        $renderer = new ImageRenderer(new RendererStyle($size), new SvgImageBackEnd());
+        $writer = new Writer($renderer);
 
-        $row = TwoFactorTrustedDevice::create([
-            'user_id' => $userId,
-            'token_hash' => $tokenHash,
-            'ip_address' => $request->ip(),
-            'user_agent' => substr((string)$request->userAgent(), 0, 255),
-            'last_used_at' => now(),
-            'expires_at' => now()->addDays($this->trustDays()),
-        ]);
+        $svg = $writer->writeString($text);
+        return 'data:image/svg+xml;base64,' . base64_encode($svg);
+    }
 
-        // Cookie holds: "{deviceId}.{token}"
-        $cookieValue = $row->id . '.' . $token;
-
-        $minutes = $this->trustDays() * 24 * 60;
-
-        Cookie::queue(
-            Cookie::make(
-                name: $this->trustedCookieName(),
-                value: $cookieValue,
-                minutes: $minutes,
-                path: '/',
-                domain: null,
-                secure: (bool) config('session.secure', false),
-                httpOnly: true,
-                raw: false,
-                sameSite: 'lax'
-            )
-        );
+    private function generateBase32Secret(int $length = 24): string
+    {
+        $alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+        $secret = '';
+        for ($i = 0; $i < $length; $i++) {
+            $secret .= $alphabet[random_int(0, strlen($alphabet) - 1)];
+        }
+        return $secret;
     }
 }
