@@ -89,13 +89,18 @@ PHP_FPM_SOCK=""
 DB_SERVICE="mysql"
 WEB_GROUP="www-data"            # Ubuntu/Debian default; on RHEL we will adjust to "nginx"
 
+# 2FA trusted device env values
+TWOFA_TRUST_DAYS="30"
+TWOFA_TRUST_COOKIE_NAME="tfa_trusted_device"
+TWOFA_TRUST_COOKIE_SECURE="false"
+TWOFA_TRUST_COOKIE_SAMESITE="lax"
+TWOFA_TRUST_COOKIE_DOMAIN=""
+
 # Prefer official composer path to avoid distro deprecation spam
 COMPOSER_BIN="/usr/local/bin/composer"
 
 # -------------------- Composer (official) --------------------
 install_official_composer(){
-  # Always prefer /usr/local/bin/composer.
-  # If it's missing OR current composer resolves to distro paths, install/overwrite official.
   local need_install="no"
 
   if [[ ! -x "$COMPOSER_BIN" ]]; then
@@ -167,7 +172,6 @@ install_packages_debian(){
   log "Installing Certbot..."
   apt-get install -y certbot python3-certbot-nginx
 
-  # Force official Composer (even if apt composer exists)
   install_official_composer
 }
 
@@ -195,7 +199,6 @@ install_packages_rhel(){
   log "Installing Certbot..."
   dnf -y install certbot python3-certbot-nginx || true
 
-  # Force official Composer (even if distro composer exists)
   install_official_composer
 }
 
@@ -208,7 +211,6 @@ ensure_services(){
   systemctl restart "$DB_SERVICE" || true
   systemctl restart "$PHP_FPM_SERVICE" || true
 
-  # Guard: nginx.conf sometimes missing if dpkg previously failed
   if [[ ! -f /etc/nginx/nginx.conf ]]; then
     warn "/etc/nginx/nginx.conf missing; creating minimal default."
     mkdir -p /etc/nginx/{modules-enabled,conf.d,sites-available,sites-enabled}
@@ -368,6 +370,13 @@ QUEUE_CONNECTION=database
 SESSION_DRIVER=database
 SESSION_LIFETIME=120
 
+# 2FA "remember this device"
+TWOFA_TRUST_DAYS=${TWOFA_TRUST_DAYS}
+TWOFA_TRUST_COOKIE_NAME=\"${TWOFA_TRUST_COOKIE_NAME}\"
+TWOFA_TRUST_COOKIE_SECURE=${TWOFA_TRUST_COOKIE_SECURE}
+TWOFA_TRUST_COOKIE_SAMESITE=\"${TWOFA_TRUST_COOKIE_SAMESITE}\"
+TWOFA_TRUST_COOKIE_DOMAIN=\"${TWOFA_TRUST_COOKIE_DOMAIN}\"
+
 REDIS_CLIENT=phpredis
 REDIS_HOST=127.0.0.1
 REDIS_PASSWORD=null
@@ -408,6 +417,13 @@ update_env_keys(){
   db_user_q="\"$(env_escape "$DB_USER")\""
   db_pass_q="\"$(env_escape "$DB_PASS")\""
 
+  local twofa_days_q twofa_cookie_name_q twofa_cookie_secure_q twofa_cookie_samesite_q twofa_cookie_domain_q
+  twofa_days_q="\"$(env_escape "${TWOFA_TRUST_DAYS:-0}")\""
+  twofa_cookie_name_q="\"$(env_escape "${TWOFA_TRUST_COOKIE_NAME:-tfa_trusted_device}")\""
+  twofa_cookie_secure_q="\"$(env_escape "${TWOFA_TRUST_COOKIE_SECURE:-false}")\""
+  twofa_cookie_samesite_q="\"$(env_escape "${TWOFA_TRUST_COOKIE_SAMESITE:-lax}")\""
+  twofa_cookie_domain_q="\"$(env_escape "${TWOFA_TRUST_COOKIE_DOMAIN:-}")\""
+
   sudo -u "$APP_USER" bash -lc "php -r '
     \$path = \"$env_path\";
     \$env  = file_exists(\$path) ? file_get_contents(\$path) : \"\";
@@ -422,6 +438,12 @@ update_env_keys(){
       \"DB_DATABASE\"   => $db_name_q,
       \"DB_USERNAME\"   => $db_user_q,
       \"DB_PASSWORD\"   => $db_pass_q,
+
+      \"TWOFA_TRUST_DAYS\" => $twofa_days_q,
+      \"TWOFA_TRUST_COOKIE_NAME\" => $twofa_cookie_name_q,
+      \"TWOFA_TRUST_COOKIE_SECURE\" => $twofa_cookie_secure_q,
+      \"TWOFA_TRUST_COOKIE_SAMESITE\" => $twofa_cookie_samesite_q,
+      \"TWOFA_TRUST_COOKIE_DOMAIN\" => $twofa_cookie_domain_q,
     ];
     foreach (\$set as \$k => \$v) {
       \$pattern = \"/^\\s*#?\\s*\".preg_quote(\$k, \"/\").\"=.*/m\";
@@ -508,10 +530,8 @@ run_artisan(){
       echo '[INFO] APP_KEY already set; skipping key:generate'; \
     fi"
 
-  # Migrate FIRST
   sudo -u "$APP_USER" bash -lc "cd '$APP_DIR' && php artisan migrate --force"
 
-  # ✅ INITIAL SEED (ONLY INSTALL.SH DOES THIS)
   log "Seeding database for initial setup (db:seed --force)..."
   sudo -u "$APP_USER" bash -lc "cd '$APP_DIR' && php artisan db:seed --force"
 
@@ -785,6 +805,30 @@ if yesno "Enable HTTPS?" "y"; then
     APP_URL="https://${DOMAIN}"
   fi
 fi
+
+# 2FA trusted device (remember this browser)
+if yesno "Enable 'remember this device' for 2FA (skip challenge on same browser for a period)?" "y"; then
+  prompt TWOFA_TRUST_DAYS "2FA trust duration (days)" "30"
+  if ! [[ "$TWOFA_TRUST_DAYS" =~ ^[0-9]+$ ]]; then
+    warn "Invalid days; defaulting to 30"
+    TWOFA_TRUST_DAYS="30"
+  fi
+else
+  TWOFA_TRUST_DAYS="0"
+fi
+
+# Cookie options for trusted-device feature
+# IMPORTANT: secure cookie must be true on HTTPS, otherwise browser may drop it.
+if [[ "$ENABLE_HTTPS" == "yes" ]]; then
+  TWOFA_TRUST_COOKIE_SECURE="true"
+else
+  TWOFA_TRUST_COOKIE_SECURE="false"
+fi
+
+# Cookie name expected by app/config/twofa.php
+TWOFA_TRUST_COOKIE_NAME="tfa_trusted_device"
+TWOFA_TRUST_COOKIE_SAMESITE="lax"
+TWOFA_TRUST_COOKIE_DOMAIN=""   # set ".example.com" to share across subdomains
 
 if [[ "$OS_FAMILY" == "debian" ]]; then
   install_packages_debian
