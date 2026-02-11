@@ -200,6 +200,16 @@ Route::middleware(['auth', 'admin'])
             Route::put('/configuration/payment-methods/{paymentMethod}', [ConfigurationController::class, 'updatePaymentMethod'])->name('config.payment_methods.update');
             Route::delete('/configuration/payment-methods/{paymentMethod}', [ConfigurationController::class, 'destroyPaymentMethod'])->name('config.payment_methods.destroy');
 
+            // Employees
+            Route::post('/configuration/employees', [ConfigurationController::class, 'storeEmployee'])
+                ->name('config.employees.store');
+            
+            Route::put('/configuration/employees/{employee}', [ConfigurationController::class, 'updateEmployee'])
+                ->name('config.employees.update');
+            
+            Route::delete('/configuration/employees/{employee}', [ConfigurationController::class, 'destroyEmployee'])
+                ->name('config.employees.destroy');
+
             Route::put('/configuration/system', [ConfigurationController::class, 'updateSystem'])
                 ->name('config.system.update');
         });
