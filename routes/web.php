@@ -11,7 +11,6 @@ use App\Http\Controllers\TwoFactorController;
 use App\Http\Controllers\TwoFactorChallengeController;
 use App\Http\Controllers\EmployeeIncomeController;
 
-
 use App\Http\Controllers\Admin\UserController as AdminUserController;
 use App\Http\Controllers\Admin\SmtpSettingsController;
 use App\Http\Controllers\Admin\ConfigurationController;
@@ -35,7 +34,7 @@ Route::get('/', function () {
 
 /*
 |--------------------------------------------------------------------------
-| 2FA Challenge (must be public, enforced by middleware via session)
+| 2FA Challenge
 |--------------------------------------------------------------------------
 */
 Route::get('/two-factor-challenge', [TwoFactorChallengeController::class, 'show'])
@@ -64,24 +63,28 @@ Route::get('/dashboard', [DashboardController::class, 'index'])
 Route::middleware('auth')->group(function () {
 
     /*
+    |--------------------------------------------------------------------------
     | Profile
+    |--------------------------------------------------------------------------
     */
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 
-    // Password
     Route::patch('/profile/password', [ProfileController::class, 'password'])
         ->name('profile.password');
 
-    // Email change flow
     Route::post('/profile/email', [EmailChangeController::class, 'requestChange'])
         ->name('profile.email.request');
 
     Route::get('/profile/email/confirm/{token}', [EmailChangeController::class, 'confirm'])
         ->name('profile.email.confirm');
 
-    // 2FA (TOTP)
+    /*
+    |--------------------------------------------------------------------------
+    | 2FA
+    |--------------------------------------------------------------------------
+    */
     Route::get('/profile/2fa', [TwoFactorController::class, 'show'])
         ->name('profile.2fa.show');
 
@@ -94,33 +97,42 @@ Route::middleware('auth')->group(function () {
     Route::post('/profile/2fa/disable', [TwoFactorController::class, 'disable'])
         ->name('profile.2fa.disable');
 
-    // Recovery codes regenerate
     Route::post('/profile/2fa/recovery/regenerate', [TwoFactorController::class, 'regenerateRecoveryCodes'])
         ->name('profile.2fa.recovery.regenerate');
 
     /*
+    |--------------------------------------------------------------------------
     | Theme
+    |--------------------------------------------------------------------------
     */
     Route::post('/theme', [ThemeController::class, 'update'])->name('theme.update');
 
     /*
+    |--------------------------------------------------------------------------
     | Income
+    |--------------------------------------------------------------------------
     */
     Route::resource('income', IncomeController::class)->except(['show']);
 
     /*
+    |--------------------------------------------------------------------------
     | Expenses
+    |--------------------------------------------------------------------------
     */
     Route::resource('expenses', ExpenseController::class)->except(['show']);
 
     /*
+    |--------------------------------------------------------------------------
     | Bonus
+    |--------------------------------------------------------------------------
     */
     Route::get('/bonus', [BonusController::class, 'index'])->name('bonus.index');
     Route::post('/bonus/calculate', [BonusController::class, 'calculate'])->name('bonus.calculate');
 
     /*
-    | Reports (Home + pages)
+    |--------------------------------------------------------------------------
+    | Reports
+    |--------------------------------------------------------------------------
     */
     Route::prefix('reports')->name('reports.')->group(function () {
         Route::get('/', [ReportsController::class, 'index'])->name('index');
@@ -136,17 +148,16 @@ Route::middleware('auth')->group(function () {
         Route::get('/recurring-expenses', [ReportsController::class, 'recurringExpenses'])->name('recurring_expenses');
         Route::get('/category-trend', [ReportsController::class, 'categoryTrend'])->name('category_trend');
 
-        // Optional extras (scaffolded)
+        // Extras
         Route::get('/top-vendors', [ReportsController::class, 'topVendors'])->name('top_vendors');
         Route::get('/expense-category-breakdown', [ReportsController::class, 'expenseCategoryBreakdown'])->name('expense_category_breakdown');
         Route::get('/income-method-trend', [ReportsController::class, 'incomeMethodTrend'])->name('income_method_trend');
 
-        // Employee Income (Admin only)
+        // Employee Income report page
         Route::get('/employee-income', [ReportsController::class, 'employeeIncome'])
             ->name('employee_income')
             ->middleware('admin');
 
-        // Previous Year Monthly Income
         Route::get('/prev-year-monthly-income', [ReportsController::class, 'prevYearMonthlyIncomeComparison'])
             ->name('prev_year_monthly_income');
     });
@@ -163,7 +174,9 @@ Route::middleware(['auth', 'admin'])
     ->group(function () {
 
         /*
+        |--------------------------------------------------------------------------
         | Users
+        |--------------------------------------------------------------------------
         */
         Route::get('/users', [AdminUserController::class, 'index'])->name('users.index');
         Route::get('/users/create', [AdminUserController::class, 'create'])->name('users.create');
@@ -173,60 +186,102 @@ Route::middleware(['auth', 'admin'])
         Route::delete('/users/{user}', [AdminUserController::class, 'destroy'])->name('users.destroy');
 
         /*
+        |--------------------------------------------------------------------------
+        | Employee Income CRUD
+        |--------------------------------------------------------------------------
+        */
+        Route::get('/emp-income', [EmployeeIncomeController::class, 'index'])->name('emp_income.index');
+        Route::get('/emp-income/create', [EmployeeIncomeController::class, 'create'])->name('emp_income.create');
+        Route::post('/emp-income', [EmployeeIncomeController::class, 'store'])->name('emp_income.store');
+        Route::get('/emp-income/{emp_income}/edit', [EmployeeIncomeController::class, 'edit'])->name('emp_income.edit');
+        Route::put('/emp-income/{emp_income}', [EmployeeIncomeController::class, 'update'])->name('emp_income.update');
+        Route::delete('/emp-income/{emp_income}', [EmployeeIncomeController::class, 'destroy'])->name('emp_income.destroy');
+
+        /*
+        |--------------------------------------------------------------------------
         | Settings
+        |--------------------------------------------------------------------------
         */
         Route::prefix('settings')->name('settings.')->group(function () {
 
-            // SMTP Settings
+            /*
+            |--------------------------------------------------------------------------
+            | SMTP Settings
+            |--------------------------------------------------------------------------
+            */
             Route::get('/smtp', [SmtpSettingsController::class, 'edit'])->name('smtp.edit');
             Route::put('/smtp', [SmtpSettingsController::class, 'update'])->name('smtp.update');
             Route::post('/smtp/test', [SmtpSettingsController::class, 'test'])->name('smtp.test');
 
-            // Configuration
+            /*
+            |--------------------------------------------------------------------------
+            | Configuration
+            |--------------------------------------------------------------------------
+            */
             Route::get('/configuration', [ConfigurationController::class, 'index'])->name('config.index');
 
+            // System
+            Route::put('/configuration/system', [ConfigurationController::class, 'updateSystem'])
+                ->name('config.system.update');
+
             // Income Sources
-            Route::post('/configuration/income-sources', [ConfigurationController::class, 'storeIncomeSource'])->name('config.income_sources.store');
-            Route::put('/configuration/income-sources/{incomeSource}', [ConfigurationController::class, 'updateIncomeSource'])->name('config.income_sources.update');
-            Route::delete('/configuration/income-sources/{incomeSource}', [ConfigurationController::class, 'destroyIncomeSource'])->name('config.income_sources.destroy');
+            Route::post('/configuration/income-sources', [ConfigurationController::class, 'storeIncomeSource'])
+                ->name('config.income_sources.store');
+
+            Route::put('/configuration/income-sources/{incomeSource}', [ConfigurationController::class, 'updateIncomeSource'])
+                ->name('config.income_sources.update');
+
+            Route::delete('/configuration/income-sources/{incomeSource}', [ConfigurationController::class, 'destroyIncomeSource'])
+                ->name('config.income_sources.destroy');
 
             // Expense Categories
-            Route::post('/configuration/expense-categories', [ConfigurationController::class, 'storeExpenseCategory'])->name('config.expense_categories.store');
-            Route::put('/configuration/expense-categories/{expenseCategory}', [ConfigurationController::class, 'updateExpenseCategory'])->name('config.expense_categories.update');
-            Route::delete('/configuration/expense-categories/{expenseCategory}', [ConfigurationController::class, 'destroyExpenseCategory'])->name('config.expense_categories.destroy');
+            Route::post('/configuration/expense-categories', [ConfigurationController::class, 'storeExpenseCategory'])
+                ->name('config.expense_categories.store');
+
+            Route::put('/configuration/expense-categories/{expenseCategory}', [ConfigurationController::class, 'updateExpenseCategory'])
+                ->name('config.expense_categories.update');
+
+            Route::delete('/configuration/expense-categories/{expenseCategory}', [ConfigurationController::class, 'destroyExpenseCategory'])
+                ->name('config.expense_categories.destroy');
 
             // Payment Methods
-            Route::post('/configuration/payment-methods', [ConfigurationController::class, 'storePaymentMethod'])->name('config.payment_methods.store');
-            Route::put('/configuration/payment-methods/{paymentMethod}', [ConfigurationController::class, 'updatePaymentMethod'])->name('config.payment_methods.update');
-            Route::delete('/configuration/payment-methods/{paymentMethod}', [ConfigurationController::class, 'destroyPaymentMethod'])->name('config.payment_methods.destroy');
+            Route::post('/configuration/payment-methods', [ConfigurationController::class, 'storePaymentMethod'])
+                ->name('config.payment_methods.store');
+
+            Route::put('/configuration/payment-methods/{paymentMethod}', [ConfigurationController::class, 'updatePaymentMethod'])
+                ->name('config.payment_methods.update');
+
+            Route::delete('/configuration/payment-methods/{paymentMethod}', [ConfigurationController::class, 'destroyPaymentMethod'])
+                ->name('config.payment_methods.destroy');
 
             // Employees
             Route::post('/configuration/employees', [ConfigurationController::class, 'storeEmployee'])
                 ->name('config.employees.store');
-            
+
             Route::put('/configuration/employees/{employee}', [ConfigurationController::class, 'updateEmployee'])
                 ->name('config.employees.update');
-            
+
             Route::delete('/configuration/employees/{employee}', [ConfigurationController::class, 'destroyEmployee'])
                 ->name('config.employees.destroy');
-
-            Route::put('/configuration/system', [ConfigurationController::class, 'updateSystem'])
-                ->name('config.system.update');
         });
 
+        /*
+        |--------------------------------------------------------------------------
+        | Audit
+        |--------------------------------------------------------------------------
+        */
         Route::get('/audit', [AuditLogController::class, 'index'])->name('audit.index');
     });
 
 /*
 |--------------------------------------------------------------------------
-| Tools Area (Admin)
+| Tools Area
 |--------------------------------------------------------------------------
 */
 Route::middleware(['auth', 'admin'])
     ->prefix('tools')
     ->name('tools.')
     ->group(function () {
-
         Route::get('/import', [ImportController::class, 'index'])->name('import.index');
         Route::get('/import/{type}', [ImportController::class, 'showUpload'])->name('import.upload');
         Route::post('/import/{type}/upload', [ImportController::class, 'handleUpload'])->name('import.handle_upload');

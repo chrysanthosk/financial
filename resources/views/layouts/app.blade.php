@@ -65,10 +65,10 @@
                     </li>
 
                     {{-- Emp. Income is a REPORT (admin only) --}}
-                    @if($isAdmin && \Illuminate\Support\Facades\Route::has('reports.employee_income'))
+                    @if($isAdmin && \Illuminate\Support\Facades\Route::has('admin.emp_income.index'))
                         <li class="nav-item">
-                            <a href="{{ route('reports.employee_income') }}"
-                               class="nav-link {{ $employeeIncomeReportActive ? 'active' : '' }}">
+                            <a href="{{ route('admin.emp_income.index') }}"
+                               class="nav-link {{ request()->routeIs('admin.emp_income.*') ? 'active' : '' }}">
                                 <i class="fas fa-user-tie me-1"></i> Emp. Income
                             </a>
                         </li>
