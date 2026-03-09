@@ -1,115 +1,122 @@
 <?php
 
-namespace App\Http\Controllers\Auth;
+namespace App\Http\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Models\TwoFactorTrustedDevice;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cookie;
+use Illuminate\Support\Str;
 
-class AuthenticatedSessionController extends Controller
+class TwoFactorChallengeController extends Controller
 {
     private const TRUSTED_COOKIE = 'tfa_trusted_device';
 
-    public function create()
+    public function show(Request $request)
     {
-        return view('auth.login');
+        // If there's no pending 2FA user, go back to login
+        if (!$request->session()->has('2fa:user:id')) {
+            return redirect()->route('login');
+        }
+
+        // IMPORTANT: match your blade location/name
+        // You showed: two-factor-challenge.blade.php
+        // If it is located at resources/views/auth/two-factor-challenge.blade.php:
+        // return view('auth.two-factor-challenge');
+        //
+        // If it is located at resources/views/two-factor-challenge.blade.php:
+        return view('auth.two-factor-challenge');
     }
 
-    public function store(Request $request)
+    public function verify(Request $request)
     {
         $request->validate([
-            'email' => ['required', 'email'],
-            'password' => ['required'],
+            'code' => ['required', 'digits:6'],
+            'remember_device' => ['nullable', 'boolean'],
         ]);
 
-        $remember = $request->boolean('remember');
+        $userId   = (int) $request->session()->get('2fa:user:id', 0);
+        $remember = (bool) $request->session()->get('2fa:remember', false);
 
-        if (!Auth::attempt($request->only('email', 'password'), $remember)) {
-            return back()
-                ->withErrors(['email' => 'Invalid credentials.'])
-                ->onlyInput('email');
+        if (!$userId) {
+            return redirect()->route('login');
         }
 
-        $request->session()->regenerate();
-
-        $user = Auth::user();
-
-        if ($user && method_exists($user, 'hasTwoFactorEnabled') && $user->hasTwoFactorEnabled()) {
-            if ($this->trustedDeviceIsValidForUser($request, (int)$user->id)) {
-                return redirect()->intended(route('dashboard'));
-            }
-
-            $request->session()->put('2fa:user:id', $user->id);
-            $request->session()->put('2fa:remember', $remember);
-
-            Auth::logout();
-
-            $request->session()->invalidate();
-            $request->session()->regenerateToken();
-
-            $request->session()->put('2fa:user:id', $user->id);
-            $request->session()->put('2fa:remember', $remember);
-
-            return redirect()->route('two-factor.challenge.show');
+        $user = User::find($userId);
+        if (!$user) {
+            return redirect()->route('login');
         }
+
+        // Must have OTP library
+        if (!class_exists(\OTPHP\TOTP::class)) {
+            return back()->withErrors(['code' => 'OTP library missing (spomky-labs/otphp).']);
+        }
+
+        // Must have secret + confirmed
+        if (!$user->two_factor_secret || !$user->two_factor_confirmed_at) {
+            return redirect()->route('login');
+        }
+
+        $secret = (string) $user->two_factor_secret;
+
+        $issuer = config('app.name', 'Financial');
+        $label  = $user->email ?: ('user-' . $user->id);
+
+        $totp = \OTPHP\TOTP::create($secret);
+        $totp->setIssuer($issuer);
+        $totp->setLabel($label);
+
+        $code = $request->input('code');
+        $now  = time();
+
+        $valid =
+            $totp->verify($code, $now) ||
+            $totp->verify($code, $now - 30) ||
+            $totp->verify($code, $now + 30);
+
+        if (!$valid) {
+            return back()->withErrors(['code' => 'Invalid code. Please try again.']);
+        }
+
+        // Login the user after successful challenge
+        Auth::login($user, $remember);
+
+        // Optionally remember device
+        if ($request->boolean('remember_device')) {
+            $token = Str::random(64);
+
+            $row = TwoFactorTrustedDevice::create([
+                'user_id'     => $user->id,
+                'token_hash'  => hash('sha256', $token),
+                'expires_at'  => now()->addDays(30),
+                'last_used_at'=> now(),
+            ]);
+
+            Cookie::queue(cookie(
+                self::TRUSTED_COOKIE,
+                $row->id . '.' . $token,
+                60 * 24 * 30, // 30 days
+                null,
+                null,
+                true,
+                true,
+                false,
+                'Lax'
+            ));
+        }
+
+        // Clear pending session flags
+        $request->session()->forget(['2fa:user:id', '2fa:remember']);
 
         return redirect()->intended(route('dashboard'));
     }
 
-    public function destroy(Request $request)
+    public function cancel(Request $request)
     {
-        Auth::logout();
-
-        Cookie::queue(Cookie::forget(self::TRUSTED_COOKIE));
-
-        $request->session()->invalidate();
-        $request->session()->regenerateToken();
-
+        // Cancel challenge and force back to login
+        $request->session()->forget(['2fa:user:id', '2fa:remember']);
         return redirect()->route('login');
-    }
-
-    private function trustedDeviceIsValidForUser(Request $request, int $userId): bool
-    {
-        $cookie = $request->cookie(self::TRUSTED_COOKIE);
-        if (!$cookie) return false;
-
-        $parts = explode('.', (string)$cookie, 2);
-        if (count($parts) !== 2) {
-            Cookie::queue(Cookie::forget(self::TRUSTED_COOKIE));
-            return false;
-        }
-
-        [$deviceIdRaw, $token] = $parts;
-
-        if (!ctype_digit($deviceIdRaw) || $token === '') {
-            Cookie::queue(Cookie::forget(self::TRUSTED_COOKIE));
-            return false;
-        }
-
-        $deviceId = (int)$deviceIdRaw;
-        $tokenHash = hash('sha256', $token);
-
-        $row = TwoFactorTrustedDevice::query()
-            ->where('id', $deviceId)
-            ->where('user_id', $userId)
-            ->where('expires_at', '>', now())
-            ->first();
-
-        if (!$row) {
-            Cookie::queue(Cookie::forget(self::TRUSTED_COOKIE));
-            return false;
-        }
-
-        if (!hash_equals((string)$row->token_hash, (string)$tokenHash)) {
-            Cookie::queue(Cookie::forget(self::TRUSTED_COOKIE));
-            return false;
-        }
-
-        $row->last_used_at = now();
-        $row->save();
-
-        return true;
     }
 }
