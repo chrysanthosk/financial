@@ -15,12 +15,14 @@ class Expense extends Model
         'amount',
         'cheque_no',
         'reason',
+        'is_paid',     // ✅ NEW
         'created_by',
     ];
 
     protected $casts = [
         'expense_date' => 'date',
         'amount' => 'decimal:2',
+        'is_paid' => 'boolean', // ✅ NEW
     ];
 
     public function category(): BelongsTo

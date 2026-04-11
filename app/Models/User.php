@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Database\Eloquent\Casts\Attribute;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class User extends Authenticatable
 {
@@ -39,7 +40,7 @@ class User extends Authenticatable
         'two_factor_confirmed_at' => 'datetime',
         'pending_email_requested_at' => 'datetime',
 
-        // Laravel supports encrypted casts
+        // Encrypted at rest (Laravel will encrypt/decrypt automatically)
         'two_factor_secret' => 'encrypted',
         'two_factor_recovery_codes' => 'encrypted:array',
     ];
@@ -61,5 +62,10 @@ class User extends Authenticatable
     public function hasTwoFactorEnabled(): bool
     {
         return !empty($this->two_factor_secret) && !is_null($this->two_factor_confirmed_at);
+    }
+
+    public function trustedDevices(): HasMany
+    {
+        return $this->hasMany(TwoFactorTrustedDevice::class);
     }
 }

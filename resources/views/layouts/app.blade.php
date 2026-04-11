@@ -16,7 +16,13 @@
   $brandHeader = $system?->header_name ?: config('app.name', 'Financial');
   $brandFooter = $system?->footer_name ?: config('app.name', 'Financial');
 
+  $isAdmin = auth()->check() && ((auth()->user()->role ?? null) === 'admin');
+
+  // reports dropdown active when any reports.* route is active
   $reportsActive = request()->routeIs('reports.*');
+
+  // Employee Income report active specifically
+  $employeeIncomeReportActive = request()->routeIs('reports.employee_income') || request()->routeIs('reports.employee_income*');
 @endphp
 
 <body class="hold-transition layout-top-nav">
@@ -57,6 +63,16 @@
                             <i class="fas fa-coins me-1"></i> Income
                         </a>
                     </li>
+
+                    {{-- Emp. Income is a REPORT (admin only) --}}
+                    @if($isAdmin && \Illuminate\Support\Facades\Route::has('admin.emp_income.index'))
+                        <li class="nav-item">
+                            <a href="{{ route('admin.emp_income.index') }}"
+                               class="nav-link {{ request()->routeIs('admin.emp_income.*') ? 'active' : '' }}">
+                                <i class="fas fa-user-tie me-1"></i> Emp. Income
+                            </a>
+                        </li>
+                    @endif
 
                     <li class="nav-item">
                         <a href="{{ route('expenses.index') }}"
@@ -121,12 +137,29 @@
                                 </li>
                             @endif
 
+                            @if(\Illuminate\Support\Facades\Route::has('reports.prev_year_monthly_income'))
+                                <li>
+                                    <a href="{{ route('reports.prev_year_monthly_income') }}" class="dropdown-item">
+                                        <i class="fas fa-chart-bar me-2"></i> Prev Year Monthly Income
+                                    </a>
+                                </li>
+                            @endif
+
                             <li><hr class="dropdown-divider"></li>
 
                             @if(\Illuminate\Support\Facades\Route::has('reports.top_vendors'))
                                 <li>
                                     <a href="{{ route('reports.top_vendors') }}" class="dropdown-item">
                                         <i class="fas fa-store me-2"></i> Top Vendors
+                                    </a>
+                                </li>
+                            @endif
+
+                            {{-- Employee Income report (admin only) --}}
+                            @if($isAdmin && \Illuminate\Support\Facades\Route::has('reports.employee_income'))
+                                <li>
+                                    <a href="{{ route('reports.employee_income') }}" class="dropdown-item">
+                                        <i class="fas fa-user-tie me-2"></i> Employee Income
                                     </a>
                                 </li>
                             @endif
@@ -173,7 +206,7 @@
                         </ul>
                     </li>
 
-                    @if(auth()->check() && (auth()->user()->role ?? null) === 'admin')
+                    @if($isAdmin)
                         <li class="nav-item">
                             <a href="{{ route('admin.users.index') }}"
                                class="nav-link {{ request()->routeIs('admin.users.*') ? 'active' : '' }}">

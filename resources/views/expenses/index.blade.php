@@ -97,6 +97,7 @@
                                 <th style="width:140px;" class="text-end">Amount</th>
                                 <th style="width:160px;">Cheque No</th>
                                 <th>Reason</th>
+                                <th style="width:110px;">Paid</th>
                                 <th style="width:160px;" class="text-end">Actions</th>
                             </tr>
                             </thead>
@@ -111,6 +112,13 @@
                                 <td class="text-end">{{ number_format((float)$e->amount, 2) }}</td>
                                 <td class="text-muted">{{ $e->cheque_no ?: '—' }}</td>
                                 <td class="text-muted">{{ $e->reason ?: '—' }}</td>
+                                <td>
+                                    @if((bool)$e->is_paid)
+                                        <span class="badge bg-success">Yes</span>
+                                    @else
+                                        <span class="badge bg-secondary">No</span>
+                                    @endif
+                                </td>
                                 <td class="text-end">
                                     <a href="{{ route('expenses.edit', $e) }}" class="btn btn-sm btn-outline-primary">
                                         <i class="fas fa-edit"></i> Edit
@@ -128,7 +136,7 @@
                             </tr>
                             @empty
                             <tr>
-                                <td colspan="8" class="text-center py-4 text-muted">No expenses found for this month.</td>
+                                <td colspan="9" class="text-center py-4 text-muted">No expenses found for this month.</td>
                             </tr>
                             @endforelse
                             </tbody>

@@ -45,6 +45,16 @@ class DashboardController extends Controller
         $mtdProfit = $mtdIncome - $mtdExpenses;
 
         // -------------------------
+        // Unpaid expenses (latest)
+        // -------------------------
+        $unpaidExpenses = Expense::query()
+            ->where('is_paid', false)
+            ->orderByDesc('expense_date')
+            ->orderByDesc('id')
+            ->limit(8)
+            ->get(['id', 'expense_date', 'payee_name', 'amount']);
+
+        // -------------------------
         // Chart 1: Income vs Expenses by day (current month)
         // DB-agnostic grouping: groupBy(date column itself)
         // -------------------------
@@ -112,6 +122,8 @@ class DashboardController extends Controller
             'mtdIncome' => $mtdIncome,
             'mtdExpenses' => $mtdExpenses,
             'mtdProfit' => $mtdProfit,
+
+            'unpaidExpenses' => $unpaidExpenses,
 
             'chartLabels' => $labels,
             'chartIncomeByDay' => $chartIncomeByDay,

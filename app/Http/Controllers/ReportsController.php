@@ -6,6 +6,7 @@ use App\Models\Expense;
 use App\Models\Income;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 
 class ReportsController extends Controller
 {
@@ -565,6 +566,76 @@ class ReportsController extends Controller
         ]);
     }
 
+    /**
+     * ✅ NEW REPORT: Employee Income
+     * Admin-only via route middleware.
+     *
+     * Aggregates employee_incomes.total_amount per employee.
+     * Filters by year + optional month.
+     */
+    public function employeeIncome(Request $request)
+    {
+        $year = (int)($request->query('year') ?: now()->year);
+        $monthRaw = $request->query('month');
+
+        // Month optional => null means whole year
+        $month = ($monthRaw === null || $monthRaw === '') ? null : (int)$monthRaw;
+        if (!is_null($month)) {
+            $month = max(1, min(12, $month));
+        }
+
+        // Years available for dropdown (fallback to current year)
+        $years = DB::table('employee_incomes')
+            ->select('year')
+            ->distinct()
+            ->orderByDesc('year')
+            ->pluck('year')
+            ->toArray();
+
+        if (empty($years)) {
+            $years = [$year];
+        }
+
+        // Month dropdown labels
+        $monthOptions = [
+            1=>'Jan',2=>'Feb',3=>'Mar',4=>'Apr',5=>'May',6=>'Jun',
+            7=>'Jul',8=>'Aug',9=>'Sep',10=>'Oct',11=>'Nov',12=>'Dec'
+        ];
+
+        // Include active employees even if they have 0 records (LEFT JOIN)
+        $q = DB::table('employees')
+            ->leftJoin('employee_incomes', function ($join) use ($year, $month) {
+                $join->on('employees.id', '=', 'employee_incomes.employee_id')
+                    ->where('employee_incomes.year', '=', $year);
+
+                if (!is_null($month)) {
+                    $join->where('employee_incomes.month', '=', $month);
+                }
+            })
+            ->where('employees.is_active', true)
+            ->groupBy('employees.id', 'employees.name')
+            ->orderBy('employees.sort_order')
+            ->orderBy('employees.name')
+            ->selectRaw('employees.name as employee_name, COALESCE(SUM(employee_incomes.total_amount), 0) as total');
+
+        $rows = $q->get();
+
+        $labels = $rows->pluck('employee_name')->toArray();
+        $series = $rows->pluck('total')->map(fn($v) => (float)$v)->toArray();
+        $grandTotal = array_sum($series);
+
+        return view('reports.employee_income', [
+            'year' => $year,
+            'month' => $month,
+            'years' => $years,
+            'monthOptions' => $monthOptions,
+            'rows' => $rows,
+            'labels' => $labels,
+            'series' => $series,
+            'grandTotal' => $grandTotal,
+        ]);
+    }
+
     /* -------------------------
        Helpers
     -------------------------*/
@@ -634,5 +705,48 @@ class ReportsController extends Controller
         }
 
         return $profit;
+    }
+public function prevYearMonthlyIncomeComparison(Request $request)
+    {
+        $year = (int)($request->query('year') ?: now()->year);
+        $prev = $year - 1;
+
+        $fromYear = Carbon::create($year, 1, 1)->startOfDay()->toDateString();
+        $toYear   = Carbon::create($year, 12, 31)->endOfDay()->toDateString();
+
+        $fromPrev = Carbon::create($prev, 1, 1)->startOfDay()->toDateString();
+        $toPrev   = Carbon::create($prev, 12, 31)->endOfDay()->toDateString();
+
+        // Income rows (DB-agnostic)
+        $rowsYear = Income::whereBetween('income_date', [$fromYear, $toYear])->get(['income_date', 'amount']);
+        $rowsPrev = Income::whereBetween('income_date', [$fromPrev, $toPrev])->get(['income_date', 'amount']);
+
+        $incomeByMonthYear = array_fill(1, 12, 0.0);
+        $incomeByMonthPrev = array_fill(1, 12, 0.0);
+
+        foreach ($rowsYear as $r) {
+            $m = Carbon::parse($r->income_date)->month;
+            $incomeByMonthYear[$m] += (float)$r->amount;
+        }
+
+        foreach ($rowsPrev as $r) {
+            $m = Carbon::parse($r->income_date)->month;
+            $incomeByMonthPrev[$m] += (float)$r->amount;
+        }
+
+        $labels = [];
+        for ($m = 1; $m <= 12; $m++) {
+            $labels[] = Carbon::create($year, $m, 1)->format('M');
+        }
+
+        return view('reports.prev_year_monthly_income', [
+            'year' => $year,
+            'prevYear' => $prev,
+            'labels' => $labels,
+            'incomeYear' => array_values($incomeByMonthYear),
+            'incomePrev' => array_values($incomeByMonthPrev),
+            'totalYear' => array_sum($incomeByMonthYear),
+            'totalPrev' => array_sum($incomeByMonthPrev),
+        ]);
     }
 }

@@ -79,6 +79,18 @@
                    value="{{ old('reason', $expense->reason) }}">
             @error('reason') <div class="text-danger small">{{ $message }}</div> @enderror
           </div>
+
+          {{-- NEW: Paid checkbox --}}
+          <div class="col-md-12 mb-3">
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" id="is_paid" name="is_paid" value="1"
+                     @checked(old('is_paid', (bool)$expense->is_paid))>
+              <label class="form-check-label" for="is_paid">
+                Paid
+              </label>
+            </div>
+            @error('is_paid') <div class="text-danger small">{{ $message }}</div> @enderror
+          </div>
         </div>
 
         <button class="btn btn-primary" type="submit">

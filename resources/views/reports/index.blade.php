@@ -177,6 +177,12 @@
             <span class="text-muted small">Current vs Previous • Month-by-month</span>
           </a>
 
+        <a class="list-group-item list-group-item-action d-flex justify-content-between align-items-center"
+           href="{{ route('reports.prev_year_monthly_income', ['year' => $year]) }}">
+          <span><i class="fas fa-coins me-2"></i> Previous Year Monthly Income Comparison</span>
+          <span class="text-muted small">This year vs last year • Month-by-month</span>
+        </a>
+
         </div>
       </div>
     </div>
@@ -209,6 +215,15 @@
             <span class="text-muted small">Top spend by vendor for selected period</span>
           </a>
 
+          {{-- NEW: Employee Income report (ADMIN ONLY) --}}
+          @if(auth()->check() && (auth()->user()->role ?? null) === 'admin' && \Illuminate\Support\Facades\Route::has('reports.employee_income'))
+            <a class="list-group-item list-group-item-action d-flex justify-content-between align-items-center"
+               href="{{ route('reports.employee_income', ['year' => $year]) }}">
+              <span><i class="fas fa-user-tie me-2"></i> Employee Income</span>
+              <span class="text-muted small">Monthly totals per employee • Year selector</span>
+            </a>
+          @endif
+
           <a class="list-group-item list-group-item-action d-flex justify-content-between align-items-center"
              href="{{ route('reports.expense_category_breakdown', ['year' => $year, 'from' => request('from'), 'to' => request('to')]) }}">
             <span><i class="fas fa-chart-pie me-2"></i> Expense Category Breakdown</span>
@@ -217,7 +232,7 @@
 
           <a class="list-group-item list-group-item-action d-flex justify-content-between align-items-center"
              href="{{ route('reports.category_trend', ['year' => $year]) }}">
-            <span><i class="fas fa-layer-group me-2 forwarding me-2"></i> Category Trend Over Time</span>
+            <span><i class="fas fa-layer-group me-2"></i> Category Trend Over Time</span>
             <span class="text-muted small">Top categories across months</span>
           </a>
 

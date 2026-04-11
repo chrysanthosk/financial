@@ -81,6 +81,109 @@
         </div>
       </div>
     </div>
+
+    {{-- =========================
+         Employees (NEW)
+    ========================== --}}
+    <div class="card mb-3">
+      <div class="card-header d-flex align-items-center justify-content-between config-card-header"
+           role="button"
+           data-bs-toggle="collapse"
+           data-bs-target="#employeesCollapse"
+           aria-expanded="false"
+           aria-controls="employeesCollapse">
+        <div>
+          <strong>Employees</strong>
+          <div class="text-muted small">Used in Emp. Income module</div>
+        </div>
+        <i class="fas fa-chevron-down config-chevron"></i>
+      </div>
+
+      <div id="employeesCollapse" class="collapse" data-bs-parent="#configAccordion">
+        <div class="card-body">
+
+          {{-- Add new --}}
+          <form method="POST" action="{{ route('admin.settings.config.employees.store') }}" class="mb-3">
+            @csrf
+            <div class="row align-items-end">
+              <div class="col-md-5 mb-2">
+                <label class="form-label">Name</label>
+                <input class="form-control" name="name" value="{{ old('name') }}" required>
+              </div>
+              <div class="col-md-2 mb-2">
+                <label class="form-label">Sort</label>
+                <input class="form-control" type="number" name="sort_order" value="{{ old('sort_order', 0) }}" min="0" max="9999">
+              </div>
+              <div class="col-md-2 mb-2">
+                <div class="form-check mt-4">
+                  <input class="form-check-input" type="checkbox" name="is_active" value="1" checked id="emp_active_new">
+                  <label class="form-check-label" for="emp_active_new">Active</label>
+                </div>
+              </div>
+              <div class="col-md-3 mb-2">
+                <button class="btn btn-primary w-100" type="submit">
+                  <i class="fas fa-plus"></i> Add Employee
+                </button>
+              </div>
+            </div>
+          </form>
+
+          <div class="table-responsive">
+            <table class="table table-sm align-middle">
+              <thead>
+                <tr>
+                  <th style="width:40%">Name</th>
+                  <th style="width:15%">Sort</th>
+                  <th style="width:15%">Active</th>
+                  <th class="text-end" style="width:30%">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                @forelse($employees as $row)
+                  <tr>
+                    <td>
+                      <form method="POST" action="{{ route('admin.settings.config.employees.update', $row) }}" class="d-flex gap-2">
+                        @csrf
+                        @method('PUT')
+                        <input class="form-control form-control-sm" name="name" value="{{ old('name', $row->name) }}" required>
+                    </td>
+                    <td>
+                        <input class="form-control form-control-sm" type="number" name="sort_order" value="{{ old('sort_order', $row->sort_order ?? 0) }}" min="0" max="9999">
+                    </td>
+                    <td>
+                        <input type="hidden" name="is_active" value="0">
+                        <div class="form-check">
+                          <input class="form-check-input" type="checkbox" name="is_active" value="1" @checked((int)$row->is_active === 1) id="emp_active_{{ $row->id }}">
+                          <label class="form-check-label" for="emp_active_{{ $row->id }}">Yes</label>
+                        </div>
+                    </td>
+                    <td class="text-end">
+                        <button class="btn btn-sm btn-outline-primary" type="submit">
+                          <i class="fas fa-save"></i> Save
+                        </button>
+                      </form>
+
+                      <form method="POST" action="{{ route('admin.settings.config.employees.destroy', $row) }}" class="d-inline"
+                            onsubmit="return confirm('Delete this employee?');">
+                        @csrf
+                        @method('DELETE')
+                        <button class="btn btn-sm btn-outline-danger" type="submit">
+                          <i class="fas fa-trash"></i> Delete
+                        </button>
+                      </form>
+                    </td>
+                  </tr>
+                @empty
+                  <tr><td colspan="4" class="text-muted">No employees found.</td></tr>
+                @endforelse
+              </tbody>
+            </table>
+          </div>
+
+        </div>
+      </div>
+    </div>
+
     {{-- =========================
          Income Sources
     ========================== --}}
@@ -246,10 +349,10 @@
                       <form method="POST" action="{{ route('admin.settings.config.expense_categories.update', $row) }}" class="d-flex gap-2">
                         @csrf
                         @method('PUT')
-                        <input class="form-control form-control-sm" name="name" value="{{ $row->name }}" required>
+                        <input class="form-control form-control-sm" name="name" value="{{ old('name', $row->name) }}" required>
                     </td>
                     <td>
-                        <input class="form-control form-control-sm" type="number" name="sort_order" value="{{ $row->sort_order ?? 0 }}" min="0" max="9999">
+                        <input class="form-control form-control-sm" type="number" name="sort_order" value="{{ old('sort_order', $row->sort_order ?? 0) }}" min="0" max="9999">
                     </td>
                     <td>
                         <input type="hidden" name="is_active" value="0">
@@ -265,7 +368,7 @@
                       </form>
 
                       <form method="POST" action="{{ route('admin.settings.config.expense_categories.destroy', $row) }}" class="d-inline"
-                            onsubmit="return confirm('Delete this expense category?');">
+                            onsubmit="return confirm('Delete this category?');">
                         @csrf
                         @method('DELETE')
                         <button class="btn btn-sm btn-outline-danger" type="submit">
@@ -297,7 +400,7 @@
            aria-controls="paymentMethodsCollapse">
         <div>
           <strong>Payment Methods</strong>
-          <div class="text-muted small">Used on Expense entries</div>
+          <div class="text-muted small">Used on Income/Expense entries</div>
         </div>
         <i class="fas fa-chevron-down config-chevron"></i>
       </div>
@@ -348,10 +451,10 @@
                       <form method="POST" action="{{ route('admin.settings.config.payment_methods.update', $row) }}" class="d-flex gap-2">
                         @csrf
                         @method('PUT')
-                        <input class="form-control form-control-sm" name="name" value="{{ $row->name }}" required>
+                        <input class="form-control form-control-sm" name="name" value="{{ old('name', $row->name) }}" required>
                     </td>
                     <td>
-                        <input class="form-control form-control-sm" type="number" name="sort_order" value="{{ $row->sort_order ?? 0 }}" min="0" max="9999">
+                        <input class="form-control form-control-sm" type="number" name="sort_order" value="{{ old('sort_order', $row->sort_order ?? 0) }}" min="0" max="9999">
                     </td>
                     <td>
                         <input type="hidden" name="is_active" value="0">
@@ -387,6 +490,6 @@
       </div>
     </div>
 
-  </div> {{-- /accordion --}}
+  </div>
 </div>
 @endsection

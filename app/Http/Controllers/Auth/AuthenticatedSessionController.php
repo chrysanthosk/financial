@@ -3,11 +3,15 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
+use App\Models\TwoFactorTrustedDevice;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cookie;
 
 class AuthenticatedSessionController extends Controller
 {
+    private const TRUSTED_COOKIE = 'tfa_trusted_device';
+
     public function create()
     {
         return view('auth.login');
@@ -32,10 +36,14 @@ class AuthenticatedSessionController extends Controller
 
         $user = Auth::user();
 
-        // If 2FA is enabled -> force challenge
-        $twoFaEnabled = (bool)($user->two_factor_enabled ?? false) && !empty($user->two_factor_secret);
+        // If 2FA is enabled -> potentially force challenge
+        if ($user && method_exists($user, 'hasTwoFactorEnabled') && $user->hasTwoFactorEnabled()) {
 
-        if ($twoFaEnabled) {
+            // If trusted device cookie is valid -> skip challenge
+            if ($this->trustedDeviceIsValidForUser($request, (int)$user->id)) {
+                return redirect()->intended(route('dashboard'));
+            }
+
             // Mark this session as pending 2FA verification
             $request->session()->put('2fa:user:id', $user->id);
             $request->session()->put('2fa:remember', $remember);
@@ -61,9 +69,57 @@ class AuthenticatedSessionController extends Controller
     {
         Auth::logout();
 
+        // IMPORTANT:
+        // Do NOT clear the trusted device cookie on logout.
+        // "Remember this device" should persist across logouts.
+        // If you want an explicit "Untrust this device" button later,
+        // we can implement that separately.
+
         $request->session()->invalidate();
         $request->session()->regenerateToken();
 
         return redirect()->route('login');
+    }
+
+    private function trustedDeviceIsValidForUser(Request $request, int $userId): bool
+    {
+        $cookie = $request->cookie(self::TRUSTED_COOKIE);
+        if (!$cookie) {
+            return false;
+        }
+
+        // Cookie format: "{deviceId}.{token}"
+        $parts = explode('.', (string)$cookie, 2);
+        if (count($parts) !== 2) {
+            return false;
+        }
+
+        [$deviceIdRaw, $token] = $parts;
+
+        if (!ctype_digit($deviceIdRaw) || $token === '') {
+            return false;
+        }
+
+        $deviceId = (int)$deviceIdRaw;
+        $tokenHash = hash('sha256', $token);
+
+        $row = TwoFactorTrustedDevice::query()
+            ->where('id', $deviceId)
+            ->where('user_id', $userId)
+            ->where('expires_at', '>', now())
+            ->first();
+
+        if (!$row) {
+            return false;
+        }
+
+        if (!hash_equals((string)$row->token_hash, (string)$tokenHash)) {
+            return false;
+        }
+
+        $row->last_used_at = now();
+        $row->save();
+
+        return true;
     }
 }
