@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Mail\ConfirmNewEmail;
+use App\Mail\EmailChangeRequestedNotice;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
@@ -14,6 +15,7 @@ class EmailChangeController extends Controller
         $user = $request->user();
 
         $validated = $request->validate([
+            'current_password' => ['required', 'current_password'],
             'new_email' => ['required','email','max:255','unique:users,email'],
         ]);
 
@@ -25,6 +27,10 @@ class EmailChangeController extends Controller
         $user->save();
 
         Mail::to($user->pending_email)->send(new ConfirmNewEmail($user, $token));
+
+        if ($user->email) {
+            Mail::to($user->email)->send(new EmailChangeRequestedNotice($user, $user->pending_email));
+        }
 
         return back()->with('status', 'We sent a confirmation link to your new email address.');
     }

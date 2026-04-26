@@ -68,16 +68,22 @@
         @csrf
 
         <div class="row align-items-end">
-          <div class="col-md-8 mb-3">
+          <div class="col-md-6 mb-3">
             <label class="form-label">New Email</label>
-            <input type="email" name="email" class="form-control" value="{{ old('email') }}" required>
-            @error('email') <div class="text-danger small">{{ $message }}</div> @enderror
+            <input type="email" name="new_email" class="form-control" value="{{ old('new_email') }}" required>
+            @error('new_email') <div class="text-danger small">{{ $message }}</div> @enderror
             <div class="text-muted small mt-1">
               We’ll send a confirmation link to the new email address (using your SMTP settings).
             </div>
           </div>
 
-          <div class="col-md-4 mb-3">
+          <div class="col-md-3 mb-3">
+            <label class="form-label">Current Password</label>
+            <input type="password" name="current_password" class="form-control" required autocomplete="current-password">
+            @error('current_password') <div class="text-danger small">{{ $message }}</div> @enderror
+          </div>
+
+          <div class="col-md-3 mb-3">
             <button class="btn btn-outline-secondary w-100" type="submit">
               <i class="fas fa-envelope me-2"></i> Send Confirmation
             </button>

@@ -39,7 +39,7 @@
                   $uName = trim(($u->first_name ?? '') . ' ' . ($u->last_name ?? ''));
                 @endphp
                 <option value="{{ $u->id }}" @selected((string)request('user_id') === (string)$u->id)>
-                  {{ $u->email }}{!! $uName !== '' ? ' — '.$uName : '' !!}
+                  {{ $u->email }}{{ $uName !== '' ? ' — '.$uName : '' }}
                 </option>
               @endforeach
             </select>
