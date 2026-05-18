@@ -114,6 +114,12 @@ class ConfigurationController extends Controller
 
     public function destroyIncomeSource(IncomeSource $incomeSource)
     {
+        if ($incomeSource->incomes()->exists()) {
+            return back()->withErrors([
+                'config' => 'Cannot delete income source "'.$incomeSource->name.'" — it is used by one or more income entries. Deactivate it instead.',
+            ]);
+        }
+
         $incomeSource->delete();
         return back()->with('status', 'Income source deleted.');
     }
@@ -159,6 +165,12 @@ class ConfigurationController extends Controller
 
     public function destroyExpenseCategory(ExpenseCategory $expenseCategory)
     {
+        if ($expenseCategory->expenses()->exists()) {
+            return back()->withErrors([
+                'config' => 'Cannot delete expense category "'.$expenseCategory->name.'" — it is used by one or more expenses. Deactivate it instead.',
+            ]);
+        }
+
         $expenseCategory->delete();
         return back()->with('status', 'Expense category deleted.');
     }
@@ -204,6 +216,12 @@ class ConfigurationController extends Controller
 
     public function destroyPaymentMethod(PaymentMethod $paymentMethod)
     {
+        if ($paymentMethod->expenses()->exists()) {
+            return back()->withErrors([
+                'config' => 'Cannot delete payment method "'.$paymentMethod->name.'" — it is used by one or more expenses. Deactivate it instead.',
+            ]);
+        }
+
         $paymentMethod->delete();
         return back()->with('status', 'Payment method deleted.');
     }
@@ -249,8 +267,12 @@ class ConfigurationController extends Controller
 
     public function destroyEmployee(Employee $employee)
     {
-        // If you want to prevent delete when linked data exists:
-        // if ($employee->incomes()->exists()) { ... }
+        if ($employee->incomes()->exists()) {
+            return back()->withErrors([
+                'config' => 'Cannot delete employee "'.$employee->name.'" — it has linked employee income entries. Deactivate it instead.',
+            ]);
+        }
+
         $employee->delete();
 
         return back()->with('status', 'Employee deleted.');

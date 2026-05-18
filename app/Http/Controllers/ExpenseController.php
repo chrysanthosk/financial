@@ -115,6 +115,7 @@ class ExpenseController extends Controller
             'defaultDate' => now()->toDateString(),
             'categories'  => $categories,
             'methods'     => $methods,
+            'payees'      => $this->payeeSuggestions(),
         ]);
     }
 
@@ -175,7 +176,25 @@ class ExpenseController extends Controller
             'expense'     => $expense->load(['category', 'method']),
             'categories'  => $categories,
             'methods'     => $methods,
+            'payees'      => $this->payeeSuggestions(),
         ]);
+    }
+
+    /**
+     * Distinct, non-empty payee names from prior expenses, used to back a
+     * <datalist> autocomplete on the create/edit forms.
+     */
+    private function payeeSuggestions(): array
+    {
+        return Expense::query()
+            ->select('payee_name')
+            ->whereNotNull('payee_name')
+            ->where('payee_name', '!=', '')
+            ->distinct()
+            ->orderBy('payee_name')
+            ->limit(500)
+            ->pluck('payee_name')
+            ->all();
     }
 
     public function update(Request $request, Expense $expense)

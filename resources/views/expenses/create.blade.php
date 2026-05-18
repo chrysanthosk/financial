@@ -32,7 +32,13 @@
           <div class="col-md-5 mb-3">
             <label class="form-label">Payee / Company</label>
             <input type="text" name="payee_name" maxlength="120" class="form-control"
+                   list="payee-suggestions" autocomplete="off"
                    value="{{ old('payee_name') }}" required>
+            <datalist id="payee-suggestions">
+              @foreach($payees as $p)
+                <option value="{{ $p }}"></option>
+              @endforeach
+            </datalist>
             @error('payee_name') <div class="text-danger small">{{ $message }}</div> @enderror
           </div>
 
