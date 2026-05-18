@@ -21,4 +21,9 @@ class ExpenseCategory extends Model
     {
         return $this->hasMany(Expense::class, 'expense_category_id');
     }
+
+    public function templates(): HasMany
+    {
+        return $this->hasMany(ExpenseTemplate::class, 'expense_category_id');
+    }
 }

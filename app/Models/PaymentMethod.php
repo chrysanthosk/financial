@@ -21,4 +21,9 @@ class PaymentMethod extends Model
     {
         return $this->hasMany(Expense::class, 'payment_method_id');
     }
+
+    public function templates(): HasMany
+    {
+        return $this->hasMany(ExpenseTemplate::class, 'payment_method_id');
+    }
 }

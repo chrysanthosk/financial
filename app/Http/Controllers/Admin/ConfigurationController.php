@@ -165,9 +165,9 @@ class ConfigurationController extends Controller
 
     public function destroyExpenseCategory(ExpenseCategory $expenseCategory)
     {
-        if ($expenseCategory->expenses()->exists()) {
+        if ($expenseCategory->expenses()->exists() || $expenseCategory->templates()->exists()) {
             return back()->withErrors([
-                'config' => 'Cannot delete expense category "'.$expenseCategory->name.'" — it is used by one or more expenses. Deactivate it instead.',
+                'config' => 'Cannot delete expense category "'.$expenseCategory->name.'" — it is used by one or more expenses or recurring templates. Deactivate it instead.',
             ]);
         }
 
@@ -216,9 +216,9 @@ class ConfigurationController extends Controller
 
     public function destroyPaymentMethod(PaymentMethod $paymentMethod)
     {
-        if ($paymentMethod->expenses()->exists()) {
+        if ($paymentMethod->expenses()->exists() || $paymentMethod->templates()->exists()) {
             return back()->withErrors([
-                'config' => 'Cannot delete payment method "'.$paymentMethod->name.'" — it is used by one or more expenses. Deactivate it instead.',
+                'config' => 'Cannot delete payment method "'.$paymentMethod->name.'" — it is used by one or more expenses or recurring templates. Deactivate it instead.',
             ]);
         }
 

@@ -6,6 +6,7 @@ use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\ThemeController;
 use App\Http\Controllers\IncomeController;
 use App\Http\Controllers\ExpenseController;
+use App\Http\Controllers\ExpenseTemplateController;
 use App\Http\Controllers\EmailChangeController;
 use App\Http\Controllers\TwoFactorController;
 use App\Http\Controllers\TwoFactorChallengeController;
@@ -120,6 +121,21 @@ Route::middleware('auth')->group(function () {
     |--------------------------------------------------------------------------
     */
     Route::resource('expenses', ExpenseController::class)->except(['show']);
+
+    /*
+    |--------------------------------------------------------------------------
+    | Recurring Expense Templates
+    |--------------------------------------------------------------------------
+    */
+    Route::prefix('expenses/recurring')->name('expenses.recurring.')->group(function () {
+        Route::get('/',                    [ExpenseTemplateController::class, 'index'])->name('index');
+        Route::get('/create',              [ExpenseTemplateController::class, 'create'])->name('create');
+        Route::post('/',                   [ExpenseTemplateController::class, 'store'])->name('store');
+        Route::get('/{template}/edit',     [ExpenseTemplateController::class, 'edit'])->name('edit');
+        Route::put('/{template}',          [ExpenseTemplateController::class, 'update'])->name('update');
+        Route::delete('/{template}',       [ExpenseTemplateController::class, 'destroy'])->name('destroy');
+        Route::post('/{template}/insert',  [ExpenseTemplateController::class, 'insert'])->name('insert');
+    });
 
     /*
     |--------------------------------------------------------------------------

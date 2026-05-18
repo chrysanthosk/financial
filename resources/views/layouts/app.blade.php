@@ -76,10 +76,19 @@
 
                     <li class="nav-item">
                         <a href="{{ route('expenses.index') }}"
-                           class="nav-link {{ request()->routeIs('expenses.*') ? 'active' : '' }}">
+                           class="nav-link {{ request()->routeIs('expenses.index') || request()->routeIs('expenses.create') || request()->routeIs('expenses.edit') ? 'active' : '' }}">
                             <i class="fas fa-file-invoice-dollar me-1"></i> Expenses
                         </a>
                     </li>
+
+                    @if(\Illuminate\Support\Facades\Route::has('expenses.recurring.index'))
+                        <li class="nav-item">
+                            <a href="{{ route('expenses.recurring.index') }}"
+                               class="nav-link {{ request()->routeIs('expenses.recurring.*') ? 'active' : '' }}">
+                                <i class="fas fa-sync-alt me-1"></i> Recurring
+                            </a>
+                        </li>
+                    @endif
 
                     <li class="nav-item">
                         <a href="{{ route('bonus.index') }}"
