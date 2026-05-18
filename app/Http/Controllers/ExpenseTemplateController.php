@@ -43,6 +43,7 @@ class ExpenseTemplateController extends Controller
         return view('expenses.recurring.create', [
             'categories' => $categories,
             'methods'    => $methods,
+            'payees'     => $this->payeeSuggestions(),
         ]);
     }
 
@@ -85,7 +86,37 @@ class ExpenseTemplateController extends Controller
             'template'   => $template->load(['category', 'method']),
             'categories' => $categories,
             'methods'    => $methods,
+            'payees'     => $this->payeeSuggestions(),
         ]);
+    }
+
+    /**
+     * Distinct payee names from prior expenses AND existing templates,
+     * used to back a <datalist> autocomplete on the template forms.
+     */
+    private function payeeSuggestions(): array
+    {
+        $fromExpenses = Expense::query()
+            ->select('payee_name')
+            ->whereNotNull('payee_name')
+            ->where('payee_name', '!=', '')
+            ->distinct()
+            ->pluck('payee_name');
+
+        $fromTemplates = ExpenseTemplate::query()
+            ->select('payee_name')
+            ->whereNotNull('payee_name')
+            ->where('payee_name', '!=', '')
+            ->distinct()
+            ->pluck('payee_name');
+
+        return $fromExpenses
+            ->merge($fromTemplates)
+            ->unique()
+            ->sort()
+            ->take(500)
+            ->values()
+            ->all();
     }
 
     public function update(Request $request, ExpenseTemplate $template)
