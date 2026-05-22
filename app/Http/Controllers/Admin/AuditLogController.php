@@ -28,8 +28,7 @@ class AuditLogController extends Controller
             ->get();
 
         $query = AuditLog::query()
-            ->with(['user:id,email,first_name,last_name'])
-            ->orderByDesc('id');
+            ->with(['user:id,email,first_name,last_name']);
 
         // Filters
         $category = (string) $request->query('category', '');
@@ -39,7 +38,7 @@ class AuditLogController extends Controller
 
         $action = trim((string) $request->query('action', ''));
         if ($action !== '') {
-            $query->where('action', 'like', '%' . $action . '%');
+            $query->where('action', 'like', '%'.$action.'%');
         }
 
         $userId = $request->query('user_id');
@@ -49,18 +48,18 @@ class AuditLogController extends Controller
 
         $ip = trim((string) $request->query('ip', ''));
         if ($ip !== '') {
-            $query->where('ip', 'like', '%' . $ip . '%');
+            $query->where('ip', 'like', '%'.$ip.'%');
         }
 
         // Date range (created_at)
         $from = (string) $request->query('from', '');
         if ($from !== '') {
-            $query->whereDate('created_at', '>=', $from);
+            $query->whereDate('audit_logs.created_at', '>=', $from);
         }
 
         $to = (string) $request->query('to', '');
         if ($to !== '') {
-            $query->whereDate('created_at', '<=', $to);
+            $query->whereDate('audit_logs.created_at', '<=', $to);
         }
 
         // Search in multiple fields
@@ -75,12 +74,41 @@ class AuditLogController extends Controller
             });
         }
 
+        // Sorting (whitelisted columns only)
+        $sortable = [
+            'time' => 'audit_logs.created_at',
+            'user' => 'users.email',
+            'category' => 'audit_logs.category',
+            'action' => 'audit_logs.action',
+            'target' => 'audit_logs.target_type',
+            'ip' => 'audit_logs.ip',
+        ];
+        $sort = (string) $request->query('sort', 'time');
+        if (! array_key_exists($sort, $sortable)) {
+            $sort = 'time';
+        }
+        $direction = strtolower((string) $request->query('direction', 'desc')) === 'asc' ? 'asc' : 'desc';
+
+        if ($sort === 'user') {
+            // Order by the related user's email via a join (keeps eager-loaded model intact).
+            $query->leftJoin('users', 'users.id', '=', 'audit_logs.user_id')
+                ->select('audit_logs.*')
+                ->orderBy('users.email', $direction);
+        } else {
+            $query->orderBy($sortable[$sort], $direction);
+        }
+
+        // Stable tiebreaker.
+        $query->orderBy('audit_logs.id', 'desc');
+
         $logs = $query->paginate(25)->withQueryString();
 
         return view('admin.audit.index', [
             'logs' => $logs,
             'categories' => $categories,
             'users' => $users,
+            'sort' => $sort,
+            'direction' => $direction,
         ]);
     }
 }

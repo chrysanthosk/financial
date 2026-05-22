@@ -13,6 +13,16 @@
         'info'      => 'bg-primary',
         'debug'     => 'bg-secondary',
     ];
+
+    // Builds the URL to sort by $field, toggling direction on the active column
+    // while preserving the current filters.
+    $sortUrl = function (string $field) use ($sort, $direction) {
+        $dir = ($sort === $field && $direction === 'asc') ? 'desc' : 'asc';
+        $params = array_merge(request()->query(), ['sort' => $field, 'direction' => $dir]);
+        unset($params['page']);
+
+        return route('admin.settings.logs.index', $params);
+    };
 @endphp
 
 @section('content')
@@ -88,10 +98,17 @@
         <table class="table table-hover table-striped mb-0">
           <thead>
           <tr>
-            <th style="width:160px;">Time</th>
-            <th style="width:110px;">Level</th>
-            <th style="width:90px;">Env</th>
-            <th>Message</th>
+            @foreach(['time' => 'Time', 'level' => 'Level', 'env' => 'Env', 'message' => 'Message'] as $field => $label)
+              @php $w = ['time' => 'width:160px;', 'level' => 'width:110px;', 'env' => 'width:90px;'][$field] ?? ''; @endphp
+              <th style="{{ $w }}">
+                <a href="{{ $sortUrl($field) }}" class="text-reset text-decoration-none">
+                  {{ $label }}
+                  @if($sort === $field)
+                    <i class="fas fa-caret-{{ $direction === 'asc' ? 'up' : 'down' }} ms-1"></i>
+                  @endif
+                </a>
+              </th>
+            @endforeach
           </tr>
           </thead>
           <tbody>

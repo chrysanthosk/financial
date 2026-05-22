@@ -51,7 +51,26 @@ class ApplicationLogController extends Controller
 
         $entries = array_values($entries);
 
-        // --- Manual pagination (entries are already newest-first) ---
+        // --- Sorting ---
+        $sort = (string) $request->query('sort', 'time');
+        if (! in_array($sort, ['time', 'level', 'env', 'message'], true)) {
+            $sort = 'time';
+        }
+        $direction = strtolower((string) $request->query('direction', 'desc')) === 'asc' ? 'asc' : 'desc';
+        $factor = $direction === 'asc' ? 1 : -1;
+
+        usort($entries, function (array $a, array $b) use ($sort, $factor) {
+            $cmp = match ($sort) {
+                'level' => $this->levelRank($a['level_lower']) <=> $this->levelRank($b['level_lower']),
+                'env' => strcasecmp($a['env'], $b['env']),
+                'message' => strcasecmp($a['message'], $b['message']),
+                default => strcmp($a['timestamp'], $b['timestamp']),
+            };
+
+            return $factor * $cmp;
+        });
+
+        // --- Manual pagination ---
         $page = max(1, (int) $request->query('page', 1));
         $total = count($entries);
         $items = array_slice($entries, ($page - 1) * self::PER_PAGE, self::PER_PAGE);
@@ -67,10 +86,22 @@ class ApplicationLogController extends Controller
         return view('admin.settings.logs.index', [
             'logs' => $logs,
             'levels' => self::LEVELS,
+            'sort' => $sort,
+            'direction' => $direction,
             'fileExists' => is_file($path),
             'fileSize' => is_file($path) ? (int) filesize($path) : 0,
             'truncated' => is_file($path) && (int) filesize($path) > self::MAX_BYTES,
         ]);
+    }
+
+    /**
+     * Severity rank for sorting (0 = most severe). Unknown levels sort last.
+     */
+    private function levelRank(string $level): int
+    {
+        $rank = array_flip(self::LEVELS);
+
+        return $rank[$level] ?? 99;
     }
 
     private function logPath(): string
@@ -79,7 +110,7 @@ class ApplicationLogController extends Controller
     }
 
     /**
-     * Parse the log file into entries, newest first.
+     * Parse the log file into entries (file order; index() applies ordering).
      *
      * @return array<int, array{date:string,timestamp:string,env:string,level:string,level_lower:string,message:string,trace:string}>
      */
@@ -124,7 +155,7 @@ class ApplicationLogController extends Controller
             $entries[] = $this->finalize($current);
         }
 
-        return array_reverse($entries); // newest first
+        return $entries; // file order (oldest first); ordering is applied by index()
     }
 
     /**

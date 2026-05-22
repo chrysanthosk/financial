@@ -2,6 +2,18 @@
 
 @section('title', 'Admin - Audit Log')
 
+@php
+    // Builds the URL to sort by $field, toggling direction on the active column
+    // while preserving the current filters.
+    $sortUrl = function (string $field) use ($sort, $direction) {
+        $dir = ($sort === $field && $direction === 'asc') ? 'desc' : 'asc';
+        $params = array_merge(request()->query(), ['sort' => $field, 'direction' => $dir]);
+        unset($params['page']);
+
+        return route('admin.audit.index', $params);
+    };
+@endphp
+
 @section('content')
 <div class="container-fluid">
 
@@ -94,12 +106,16 @@
         <table class="table table-hover table-striped mb-0">
           <thead>
           <tr>
-            <th style="width:140px;">Time</th>
-            <th style="width:240px;">User</th>
-            <th style="width:120px;">Category</th>
-            <th style="width:240px;">Action</th>
-            <th style="width:160px;">Target</th>
-            <th style="width:140px;">IP</th>
+            @foreach(['time' => ['Time','140px'], 'user' => ['User','240px'], 'category' => ['Category','120px'], 'action' => ['Action','240px'], 'target' => ['Target','160px'], 'ip' => ['IP','140px']] as $field => $meta)
+              <th style="width:{{ $meta[1] }};">
+                <a href="{{ $sortUrl($field) }}" class="text-reset text-decoration-none">
+                  {{ $meta[0] }}
+                  @if($sort === $field)
+                    <i class="fas fa-caret-{{ $direction === 'asc' ? 'up' : 'down' }} ms-1"></i>
+                  @endif
+                </a>
+              </th>
+            @endforeach
             <th>Meta</th>
           </tr>
           </thead>
