@@ -2,13 +2,13 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\IncomeRequest;
 use App\Models\Income;
 use App\Models\IncomeSource;
 use App\Support\Audit;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Validation\Rule;
 
 class IncomeController extends Controller
 {
@@ -17,12 +17,12 @@ class IncomeController extends Controller
         $month = $request->string('month')->toString();
 
         // Default = current month (YYYY-MM)
-        if (!preg_match('/^\d{4}-\d{2}$/', $month)) {
+        if (! preg_match('/^\d{4}-\d{2}$/', $month)) {
             $month = now()->format('Y-m');
         }
 
         $start = Carbon::createFromFormat('Y-m', $month)->startOfMonth();
-        $end   = (clone $start)->endOfMonth();
+        $end = (clone $start)->endOfMonth();
 
         // Active sources (columns)
         $sources = IncomeSource::where('is_active', true)
@@ -49,14 +49,16 @@ class IncomeController extends Controller
 
         foreach ($rows as $r) {
             $d = Carbon::parse($r->income_date)->toDateString();
-            $sid = (int)$r->income_source_id;
+            $sid = (int) $r->income_source_id;
 
-            if (!isset($pivot[$d][$sid])) $pivot[$d][$sid] = 0.0;
-            $pivot[$d][$sid] += (float)$r->amount;
+            if (! isset($pivot[$d][$sid])) {
+                $pivot[$d][$sid] = 0.0;
+            }
+            $pivot[$d][$sid] += (float) $r->amount;
 
             // keep latest record id/note for actions
             $cellId[$d][$sid] = $r->id;
-            $cellNote[$d][$sid] = (string)($r->note ?? '');
+            $cellNote[$d][$sid] = (string) ($r->note ?? '');
         }
 
         // Generate all days for the month (so empty days show as 0)
@@ -69,7 +71,9 @@ class IncomeController extends Controller
 
         // Totals per source (columns)
         $colTotals = [];
-        foreach ($sourceIds as $sid) $colTotals[$sid] = 0.0;
+        foreach ($sourceIds as $sid) {
+            $colTotals[$sid] = 0.0;
+        }
 
         // Totals per day (rows) + month total
         $rowTotals = []; // ["YYYY-MM-DD"] => total
@@ -78,7 +82,7 @@ class IncomeController extends Controller
         foreach ($days as $d) {
             $rowTotals[$d] = 0.0;
             foreach ($sourceIds as $sid) {
-                $amt = (float)($pivot[$d][$sid] ?? 0.0);
+                $amt = (float) ($pivot[$d][$sid] ?? 0.0);
                 $rowTotals[$d] += $amt;
                 $colTotals[$sid] += $amt;
                 $monthTotal += $amt;
@@ -86,16 +90,16 @@ class IncomeController extends Controller
         }
 
         return view('income.index', [
-            'month'       => $month,
-            'sources'     => $sources,
-            'days'        => $days,
-            'pivot'       => $pivot,
-            'cellId'      => $cellId,
-            'cellNote'    => $cellNote,
-            'rowTotals'   => $rowTotals,
-            'colTotals'   => $colTotals,
-            'monthTotal'  => $monthTotal,
-            'sourceId'    => null,
+            'month' => $month,
+            'sources' => $sources,
+            'days' => $days,
+            'pivot' => $pivot,
+            'cellId' => $cellId,
+            'cellNote' => $cellNote,
+            'rowTotals' => $rowTotals,
+            'colTotals' => $colTotals,
+            'monthTotal' => $monthTotal,
+            'sourceId' => null,
         ]);
     }
 
@@ -112,17 +116,9 @@ class IncomeController extends Controller
         ]);
     }
 
-    public function store(Request $request)
+    public function store(IncomeRequest $request)
     {
-        $sources = IncomeSource::where('is_active', true)->pluck('id')->all();
-
-        $validated = $request->validate([
-            'income_date' => ['required', 'date'],
-            'income_source_id' => ['required', Rule::in($sources)],
-            'amount' => ['required', 'numeric', 'min:0'],
-            'note' => ['nullable', 'string', 'max:255'],
-        ]);
-
+        $validated = $request->validated();
         $validated['created_by'] = Auth::id();
 
         $income = Income::create($validated);
@@ -133,12 +129,12 @@ class IncomeController extends Controller
             request: $request,
             userId: $request->user()?->id,
             targetType: 'Income',
-            targetId: (string)$income->id,
+            targetId: (string) $income->id,
             meta: [
-                'income_date' => (string)$income->income_date,
-                'income_source_id' => (int)$income->income_source_id,
-                'amount' => (float)$income->amount,
-                'note_present' => !empty($income->note),
+                'income_date' => (string) $income->income_date,
+                'income_source_id' => (int) $income->income_source_id,
+                'amount' => (float) $income->amount,
+                'note_present' => ! empty($income->note),
             ]
         );
 
@@ -158,31 +154,24 @@ class IncomeController extends Controller
         ]);
     }
 
-    public function update(Request $request, Income $income)
+    public function update(IncomeRequest $request, Income $income)
     {
-        $sources = IncomeSource::where('is_active', true)->pluck('id')->all();
-
-        $validated = $request->validate([
-            'income_date' => ['required', 'date'],
-            'income_source_id' => ['required', Rule::in($sources)],
-            'amount' => ['required', 'numeric', 'min:0'],
-            'note' => ['nullable', 'string', 'max:255'],
-        ]);
+        $validated = $request->validated();
 
         $before = [
-            'income_date' => (string)$income->income_date,
-            'income_source_id' => (int)$income->income_source_id,
-            'amount' => (float)$income->amount,
-            'note' => (string)($income->note ?? ''),
+            'income_date' => (string) $income->income_date,
+            'income_source_id' => (int) $income->income_source_id,
+            'amount' => (float) $income->amount,
+            'note' => (string) ($income->note ?? ''),
         ];
 
         $income->update($validated);
 
         $after = [
-            'income_date' => (string)$income->income_date,
-            'income_source_id' => (int)$income->income_source_id,
-            'amount' => (float)$income->amount,
-            'note' => (string)($income->note ?? ''),
+            'income_date' => (string) $income->income_date,
+            'income_source_id' => (int) $income->income_source_id,
+            'amount' => (float) $income->amount,
+            'note' => (string) ($income->note ?? ''),
         ];
 
         Audit::log(
@@ -191,7 +180,7 @@ class IncomeController extends Controller
             request: $request,
             userId: $request->user()?->id,
             targetType: 'Income',
-            targetId: (string)$income->id,
+            targetId: (string) $income->id,
             meta: [
                 'changed' => [
                     'income_date' => $before['income_date'] !== $after['income_date'],
@@ -221,13 +210,13 @@ class IncomeController extends Controller
     public function destroy(Request $request, Income $income)
     {
         $meta = [
-            'income_date' => (string)$income->income_date,
-            'income_source_id' => (int)$income->income_source_id,
-            'amount' => (float)$income->amount,
-            'note_present' => !empty($income->note),
+            'income_date' => (string) $income->income_date,
+            'income_source_id' => (int) $income->income_source_id,
+            'amount' => (float) $income->amount,
+            'note_present' => ! empty($income->note),
         ];
 
-        $id = (string)$income->id;
+        $id = (string) $income->id;
 
         $income->delete();
 

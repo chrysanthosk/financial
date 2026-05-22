@@ -4,22 +4,25 @@ namespace App\Http\Controllers;
 
 use App\Models\Expense;
 use App\Models\Income;
+use App\Services\ReportingService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 
 class ReportsController extends Controller
 {
+    public function __construct(private ReportingService $reports) {}
+
     public function index(Request $request)
     {
         // Quick filter defaults
-        $year = (int)($request->query('year') ?: now()->year);
+        $year = (int) ($request->query('year') ?: now()->year);
 
         // Range filter (optional)
         $from = $request->query('from');
-        $to   = $request->query('to');
+        $to = $request->query('to');
 
-        $range = $this->resolveDateRange($year, $from, $to);
+        $range = $this->reports->resolveDateRange($year, $from, $to);
 
         // Quick summary for selected range (DB-agnostic)
         $incomeTotal = (float) Income::whereBetween('income_date', [$range['from'], $range['to']])->sum('amount');
@@ -29,46 +32,36 @@ class ReportsController extends Controller
         return view('reports.index', [
             'year' => $year,
             'from' => $range['from'],
-            'to'   => $range['to'],
+            'to' => $range['to'],
 
-            'incomeTotal'  => $incomeTotal,
+            'incomeTotal' => $incomeTotal,
             'expenseTotal' => $expenseTotal,
-            'profit'       => $profit,
+            'profit' => $profit,
         ]);
     }
 
     public function monthlyProfit(Request $request)
     {
-        $year = (int)($request->query('year') ?: now()->year);
+        $year = (int) ($request->query('year') ?: now()->year);
 
-        $from = Carbon::create($year, 1, 1)->startOfDay()->toDateString();
-        $to   = Carbon::create($year, 12, 31)->endOfDay()->toDateString();
+        ['from' => $from, 'to' => $to] = $this->reports->yearRange($year);
 
         // Fetch rows and aggregate by month in PHP (DB-agnostic)
-        $incomeRows = Income::whereBetween('income_date', [$from, $to])->get(['income_date', 'amount']);
-        $expenseRows = Expense::whereBetween('expense_date', [$from, $to])->get(['expense_date', 'amount']);
-
-        $incomeByMonth = array_fill(1, 12, 0.0);
-        $expenseByMonth = array_fill(1, 12, 0.0);
-
-        foreach ($incomeRows as $r) {
-            $m = Carbon::parse($r->income_date)->month;
-            $incomeByMonth[$m] += (float)$r->amount;
-        }
-        foreach ($expenseRows as $r) {
-            $m = Carbon::parse($r->expense_date)->month;
-            $expenseByMonth[$m] += (float)$r->amount;
-        }
+        $incomeByMonth = $this->reports->bucketByMonth(
+            Income::whereBetween('income_date', [$from, $to])->get(['income_date', 'amount']),
+            'income_date'
+        );
+        $expenseByMonth = $this->reports->bucketByMonth(
+            Expense::whereBetween('expense_date', [$from, $to])->get(['expense_date', 'amount']),
+            'expense_date'
+        );
 
         $profitByMonth = [];
         for ($m = 1; $m <= 12; $m++) {
             $profitByMonth[$m] = $incomeByMonth[$m] - $expenseByMonth[$m];
         }
 
-        $labels = [];
-        for ($m = 1; $m <= 12; $m++) {
-            $labels[] = Carbon::create($year, $m, 1)->format('M');
-        }
+        $labels = $this->reports->monthLabels($year);
 
         return view('reports.monthly_profit', [
             'year' => $year,
@@ -84,10 +77,9 @@ class ReportsController extends Controller
 
     public function ytdIncome(Request $request)
     {
-        $year = (int)($request->query('year') ?: now()->year);
+        $year = (int) ($request->query('year') ?: now()->year);
 
-        $from = Carbon::create($year, 1, 1)->toDateString();
-        $to   = Carbon::create($year, 12, 31)->toDateString();
+        ['from' => $from, 'to' => $to] = $this->reports->yearRange($year);
 
         $rows = Income::with('source')
             ->whereBetween('income_date', [$from, $to])
@@ -98,7 +90,7 @@ class ReportsController extends Controller
         $byMonth = array_fill(1, 12, 0.0);
 
         foreach ($rows as $r) {
-            $amt = (float)$r->amount;
+            $amt = (float) $r->amount;
             $total += $amt;
 
             $name = $r->source?->name ?? 'Unknown';
@@ -111,10 +103,7 @@ class ReportsController extends Controller
         // Sort breakdown descending
         arsort($bySource);
 
-        $labels = [];
-        for ($m = 1; $m <= 12; $m++) {
-            $labels[] = Carbon::create($year, $m, 1)->format('M');
-        }
+        $labels = $this->reports->monthLabels($year);
 
         return view('reports.ytd_income', [
             'year' => $year,
@@ -127,10 +116,9 @@ class ReportsController extends Controller
 
     public function ytdExpenses(Request $request)
     {
-        $year = (int)($request->query('year') ?: now()->year);
+        $year = (int) ($request->query('year') ?: now()->year);
 
-        $from = Carbon::create($year, 1, 1)->toDateString();
-        $to   = Carbon::create($year, 12, 31)->toDateString();
+        ['from' => $from, 'to' => $to] = $this->reports->yearRange($year);
 
         $rows = Expense::with(['category', 'method'])
             ->whereBetween('expense_date', [$from, $to])
@@ -142,7 +130,7 @@ class ReportsController extends Controller
         $byMonth = array_fill(1, 12, 0.0);
 
         foreach ($rows as $r) {
-            $amt = (float)$r->amount;
+            $amt = (float) $r->amount;
             $total += $amt;
 
             $method = $r->method?->name ?? 'Unknown';
@@ -158,10 +146,7 @@ class ReportsController extends Controller
         arsort($byMethod);
         arsort($byCategory);
 
-        $labels = [];
-        for ($m = 1; $m <= 12; $m++) {
-            $labels[] = Carbon::create($year, $m, 1)->format('M');
-        }
+        $labels = $this->reports->monthLabels($year);
 
         return view('reports.ytd_expenses', [
             'year' => $year,
@@ -175,20 +160,17 @@ class ReportsController extends Controller
 
     public function prevYearComparison(Request $request)
     {
-        $year = (int)($request->query('year') ?: now()->year);
+        $year = (int) ($request->query('year') ?: now()->year);
         $prev = $year - 1;
 
-        $current = $this->yearTotals($year);
-        $previous = $this->yearTotals($prev);
+        $current = $this->reports->yearTotals($year);
+        $previous = $this->reports->yearTotals($prev);
 
         // Month-by-month profit comparison
-        $curProfit = $this->profitByMonth($year);
-        $prevProfit = $this->profitByMonth($prev);
+        $curProfit = $this->reports->profitByMonth($year);
+        $prevProfit = $this->reports->profitByMonth($prev);
 
-        $labels = [];
-        for ($m = 1; $m <= 12; $m++) {
-            $labels[] = Carbon::create($year, $m, 1)->format('M');
-        }
+        $labels = $this->reports->monthLabels($year);
 
         return view('reports.prev_year_comparison', [
             'year' => $year,
@@ -204,12 +186,12 @@ class ReportsController extends Controller
     public function largestTransactions(Request $request)
     {
         $type = $request->query('type', 'expenses'); // expenses|income
-        $limit = (int)($request->query('limit') ?: 20);
+        $limit = (int) ($request->query('limit') ?: 20);
         $limit = max(5, min(100, $limit));
 
         // Optional range
-        $year = (int)($request->query('year') ?: now()->year);
-        $range = $this->resolveDateRange($year, $request->query('from'), $request->query('to'));
+        $year = (int) ($request->query('year') ?: now()->year);
+        $range = $this->reports->resolveDateRange($year, $request->query('from'), $request->query('to'));
 
         if ($type === 'income') {
             $rows = Income::with('source')
@@ -249,7 +231,7 @@ class ReportsController extends Controller
     public function recurringExpenses(Request $request)
     {
         // Simple detector: last 12 months, vendors appearing in >=3 distinct months
-        $monthsBack = (int)($request->query('months') ?: 12);
+        $monthsBack = (int) ($request->query('months') ?: 12);
         $monthsBack = max(3, min(36, $monthsBack));
 
         $to = now()->endOfDay();
@@ -260,12 +242,14 @@ class ReportsController extends Controller
 
         $map = []; // payee => [months => set, total => float, count => int]
         foreach ($rows as $r) {
-            $payee = trim((string)$r->payee_name);
-            if ($payee === '') $payee = 'Unknown';
+            $payee = trim((string) $r->payee_name);
+            if ($payee === '') {
+                $payee = 'Unknown';
+            }
 
             $monthKey = Carbon::parse($r->expense_date)->format('Y-m');
 
-            if (!isset($map[$payee])) {
+            if (! isset($map[$payee])) {
                 $map[$payee] = [
                     'months' => [],
                     'total' => 0.0,
@@ -274,7 +258,7 @@ class ReportsController extends Controller
             }
 
             $map[$payee]['months'][$monthKey] = true;
-            $map[$payee]['total'] += (float)$r->amount;
+            $map[$payee]['total'] += (float) $r->amount;
             $map[$payee]['count']++;
         }
 
@@ -292,7 +276,7 @@ class ReportsController extends Controller
         }
 
         // Sort by total spend desc
-        usort($results, fn($a, $b) => $b['total'] <=> $a['total']);
+        usort($results, fn ($a, $b) => $b['total'] <=> $a['total']);
 
         return view('reports.recurring_expenses', [
             'monthsBack' => $monthsBack,
@@ -304,10 +288,9 @@ class ReportsController extends Controller
 
     public function categoryTrend(Request $request)
     {
-        $year = (int)($request->query('year') ?: now()->year);
+        $year = (int) ($request->query('year') ?: now()->year);
 
-        $from = Carbon::create($year, 1, 1)->toDateString();
-        $to   = Carbon::create($year, 12, 31)->toDateString();
+        ['from' => $from, 'to' => $to] = $this->reports->yearRange($year);
 
         $rows = Expense::with('category')
             ->whereBetween('expense_date', [$from, $to])
@@ -319,26 +302,25 @@ class ReportsController extends Controller
         foreach ($rows as $r) {
             $cat = $r->category?->name ?? 'Unknown';
             $m = Carbon::parse($r->expense_date)->month;
-            if (!isset($series[$cat])) {
+            if (! isset($series[$cat])) {
                 $series[$cat] = array_fill(1, 12, 0.0);
             }
-            $series[$cat][$m] += (float)$r->amount;
+            $series[$cat][$m] += (float) $r->amount;
         }
 
         // Keep top N categories by total
         $totals = [];
-        foreach ($series as $cat => $months) $totals[$cat] = array_sum($months);
+        foreach ($series as $cat => $months) {
+            $totals[$cat] = array_sum($months);
+        }
         arsort($totals);
 
-        $topN = (int)($request->query('top') ?: 6);
+        $topN = (int) ($request->query('top') ?: 6);
         $topN = max(3, min(12, $topN));
 
         $topCats = array_slice(array_keys($totals), 0, $topN);
 
-        $labels = [];
-        for ($m = 1; $m <= 12; $m++) {
-            $labels[] = Carbon::create($year, $m, 1)->format('M');
-        }
+        $labels = $this->reports->monthLabels($year);
 
         $datasets = [];
         foreach ($topCats as $cat) {
@@ -359,11 +341,11 @@ class ReportsController extends Controller
     // Scaffold pages (can enhance later)
     public function topVendors(Request $request)
     {
-        $year = (int)($request->query('year') ?: now()->year);
-        $limit = (int)($request->query('limit') ?: 15);
+        $year = (int) ($request->query('year') ?: now()->year);
+        $limit = (int) ($request->query('limit') ?: 15);
         $limit = max(5, min(50, $limit));
 
-        $range = $this->resolveDateRange($year, $request->query('from'), $request->query('to'));
+        $range = $this->reports->resolveDateRange($year, $request->query('from'), $request->query('to'));
 
         // Fetch expenses for range (DB-agnostic) and aggregate in PHP
         $rows = Expense::whereBetween('expense_date', [$range['from'], $range['to']])
@@ -373,10 +355,12 @@ class ReportsController extends Controller
         $counts = [];   // payee => tx count
 
         foreach ($rows as $r) {
-            $payee = trim((string)$r->payee_name);
-            if ($payee === '') $payee = 'Unknown';
+            $payee = trim((string) $r->payee_name);
+            if ($payee === '') {
+                $payee = 'Unknown';
+            }
 
-            $totals[$payee] = ($totals[$payee] ?? 0.0) + (float)$r->amount;
+            $totals[$payee] = ($totals[$payee] ?? 0.0) + (float) $r->amount;
             $counts[$payee] = ($counts[$payee] ?? 0) + 1;
         }
 
@@ -387,14 +371,14 @@ class ReportsController extends Controller
         foreach ($topPayees as $p) {
             $table[] = [
                 'payee' => $p,
-                'total' => (float)$totals[$p],
-                'count' => (int)($counts[$p] ?? 0),
+                'total' => (float) $totals[$p],
+                'count' => (int) ($counts[$p] ?? 0),
             ];
         }
 
         // Chart data
-        $chartLabels = array_map(fn($r) => $r['payee'], $table);
-        $chartTotals = array_map(fn($r) => (float)$r['total'], $table);
+        $chartLabels = array_map(fn ($r) => $r['payee'], $table);
+        $chartTotals = array_map(fn ($r) => (float) $r['total'], $table);
 
         return view('reports.top_vendors', [
             'year' => $year,
@@ -409,8 +393,8 @@ class ReportsController extends Controller
 
     public function expenseCategoryBreakdown(Request $request)
     {
-        $year = (int)($request->query('year') ?: now()->year);
-        $range = $this->resolveDateRange($year, $request->query('from'), $request->query('to'));
+        $year = (int) ($request->query('year') ?: now()->year);
+        $range = $this->reports->resolveDateRange($year, $request->query('from'), $request->query('to'));
 
         $rows = Expense::with('category')
             ->whereBetween('expense_date', [$range['from'], $range['to']])
@@ -421,7 +405,7 @@ class ReportsController extends Controller
 
         foreach ($rows as $r) {
             $cat = $r->category?->name ?? 'Unknown';
-            $amt = (float)$r->amount;
+            $amt = (float) $r->amount;
 
             $grand += $amt;
             $totals[$cat] = ($totals[$cat] ?? 0.0) + $amt;
@@ -430,7 +414,7 @@ class ReportsController extends Controller
         arsort($totals);
 
         // Option: top N + "Other"
-        $topN = (int)($request->query('top') ?: 8);
+        $topN = (int) ($request->query('top') ?: 8);
         $topN = max(3, min(20, $topN));
 
         $topCats = array_slice($totals, 0, $topN, true);
@@ -443,7 +427,7 @@ class ReportsController extends Controller
 
         if ($otherTotal > 0) {
             $chartLabels[] = 'Other';
-            $chartTotals[] = (float)$otherTotal;
+            $chartTotals[] = (float) $otherTotal;
         }
 
         // Table for all categories
@@ -451,8 +435,8 @@ class ReportsController extends Controller
         foreach ($totals as $name => $amt) {
             $table[] = [
                 'category' => $name,
-                'total' => (float)$amt,
-                'percent' => $grand > 0 ? ((float)$amt / $grand) * 100.0 : 0.0,
+                'total' => (float) $amt,
+                'percent' => $grand > 0 ? ((float) $amt / $grand) * 100.0 : 0.0,
             ];
         }
 
@@ -470,12 +454,11 @@ class ReportsController extends Controller
 
     public function incomeMethodTrend(Request $request)
     {
-        $year = (int)($request->query('year') ?: now()->year);
+        $year = (int) ($request->query('year') ?: now()->year);
 
-        $from = Carbon::create($year, 1, 1)->toDateString();
-        $to   = Carbon::create($year, 12, 31)->toDateString();
+        ['from' => $from, 'to' => $to] = $this->reports->yearRange($year);
 
-        $topN = (int)($request->query('top') ?: 6);
+        $topN = (int) ($request->query('top') ?: 6);
         $topN = max(3, min(12, $topN));
 
         // Pull income rows for year, then build monthly totals per source in PHP
@@ -490,9 +473,9 @@ class ReportsController extends Controller
         foreach ($rows as $r) {
             $name = $r->source?->name ?? 'Unknown';
             $m = Carbon::parse($r->income_date)->month;
-            $amt = (float)$r->amount;
+            $amt = (float) $r->amount;
 
-            if (!isset($bySourceMonth[$name])) {
+            if (! isset($bySourceMonth[$name])) {
                 $bySourceMonth[$name] = array_fill(1, 12, 0.0);
             }
             $bySourceMonth[$name][$m] += $amt;
@@ -508,14 +491,11 @@ class ReportsController extends Controller
         $monthTotals = array_fill(1, 12, 0.0);
         foreach ($rows as $r) {
             $m = Carbon::parse($r->income_date)->month;
-            $monthTotals[$m] += (float)$r->amount;
+            $monthTotals[$m] += (float) $r->amount;
         }
 
         // Build datasets as % share per month
-        $labels = [];
-        for ($m = 1; $m <= 12; $m++) {
-            $labels[] = Carbon::create($year, $m, 1)->format('M');
-        }
+        $labels = $this->reports->monthLabels($year);
 
         $datasets = [];
 
@@ -523,8 +503,8 @@ class ReportsController extends Controller
         foreach ($topSources as $s) {
             $data = [];
             for ($m = 1; $m <= 12; $m++) {
-                $den = (float)$monthTotals[$m];
-                $num = (float)($bySourceMonth[$s][$m] ?? 0.0);
+                $den = (float) $monthTotals[$m];
+                $num = (float) ($bySourceMonth[$s][$m] ?? 0.0);
                 $data[] = $den > 0 ? ($num / $den) * 100.0 : 0.0;
             }
             $datasets[] = ['label' => $s, 'data' => $data];
@@ -533,10 +513,10 @@ class ReportsController extends Controller
         // Other (everything not in topSources)
         $otherData = [];
         for ($m = 1; $m <= 12; $m++) {
-            $den = (float)$monthTotals[$m];
+            $den = (float) $monthTotals[$m];
             $topSum = 0.0;
             foreach ($topSources as $s) {
-                $topSum += (float)($bySourceMonth[$s][$m] ?? 0.0);
+                $topSum += (float) ($bySourceMonth[$s][$m] ?? 0.0);
             }
             $other = max(0.0, $den - $topSum);
             $otherData[] = $den > 0 ? ($other / $den) * 100.0 : 0.0;
@@ -551,8 +531,8 @@ class ReportsController extends Controller
         foreach ($sourceTotals as $name => $total) {
             $table[] = [
                 'source' => $name,
-                'total' => (float)$total,
-                'percent' => $grand > 0 ? ((float)$total / $grand) * 100.0 : 0.0,
+                'total' => (float) $total,
+                'percent' => $grand > 0 ? ((float) $total / $grand) * 100.0 : 0.0,
             ];
         }
 
@@ -575,12 +555,12 @@ class ReportsController extends Controller
      */
     public function employeeIncome(Request $request)
     {
-        $year = (int)($request->query('year') ?: now()->year);
+        $year = (int) ($request->query('year') ?: now()->year);
         $monthRaw = $request->query('month');
 
         // Month optional => null means whole year
-        $month = ($monthRaw === null || $monthRaw === '') ? null : (int)$monthRaw;
-        if (!is_null($month)) {
+        $month = ($monthRaw === null || $monthRaw === '') ? null : (int) $monthRaw;
+        if (! is_null($month)) {
             $month = max(1, min(12, $month));
         }
 
@@ -598,8 +578,8 @@ class ReportsController extends Controller
 
         // Month dropdown labels
         $monthOptions = [
-            1=>'Jan',2=>'Feb',3=>'Mar',4=>'Apr',5=>'May',6=>'Jun',
-            7=>'Jul',8=>'Aug',9=>'Sep',10=>'Oct',11=>'Nov',12=>'Dec'
+            1 => 'Jan', 2 => 'Feb', 3 => 'Mar', 4 => 'Apr', 5 => 'May', 6 => 'Jun',
+            7 => 'Jul', 8 => 'Aug', 9 => 'Sep', 10 => 'Oct', 11 => 'Nov', 12 => 'Dec',
         ];
 
         // Include active employees even if they have 0 records (LEFT JOIN)
@@ -608,7 +588,7 @@ class ReportsController extends Controller
                 $join->on('employees.id', '=', 'employee_incomes.employee_id')
                     ->where('employee_incomes.year', '=', $year);
 
-                if (!is_null($month)) {
+                if (! is_null($month)) {
                     $join->where('employee_incomes.month', '=', $month);
                 }
             })
@@ -621,7 +601,7 @@ class ReportsController extends Controller
         $rows = $q->get();
 
         $labels = $rows->pluck('employee_name')->toArray();
-        $series = $rows->pluck('total')->map(fn($v) => (float)$v)->toArray();
+        $series = $rows->pluck('total')->map(fn ($v) => (float) $v)->toArray();
         $grandTotal = array_sum($series);
 
         return view('reports.employee_income', [
@@ -636,108 +616,25 @@ class ReportsController extends Controller
         ]);
     }
 
-    /* -------------------------
-       Helpers
-    -------------------------*/
-    private function resolveDateRange(int $year, ?string $from, ?string $to): array
+    public function prevYearMonthlyIncomeComparison(Request $request)
     {
-        // If user provides from/to, trust them (validated loosely), else use full year
-        $fallbackFrom = Carbon::create($year, 1, 1)->startOfDay()->toDateString();
-        $fallbackTo   = Carbon::create($year, 12, 31)->endOfDay()->toDateString();
-
-        if ($from && preg_match('/^\d{4}-\d{2}-\d{2}$/', $from)) {
-            $start = $from;
-        } else {
-            $start = $fallbackFrom;
-        }
-
-        if ($to && preg_match('/^\d{4}-\d{2}-\d{2}$/', $to)) {
-            $end = $to;
-        } else {
-            $end = $fallbackTo;
-        }
-
-        if ($start > $end) {
-            [$start, $end] = [$end, $start];
-        }
-
-        return ['from' => $start, 'to' => $end];
-    }
-
-    private function yearTotals(int $year): array
-    {
-        $from = Carbon::create($year, 1, 1)->toDateString();
-        $to   = Carbon::create($year, 12, 31)->toDateString();
-
-        $income = (float) Income::whereBetween('income_date', [$from, $to])->sum('amount');
-        $expenses = (float) Expense::whereBetween('expense_date', [$from, $to])->sum('amount');
-
-        return [
-            'income' => $income,
-            'expenses' => $expenses,
-            'profit' => $income - $expenses,
-        ];
-    }
-
-    private function profitByMonth(int $year): array
-    {
-        $from = Carbon::create($year, 1, 1)->toDateString();
-        $to   = Carbon::create($year, 12, 31)->toDateString();
-
-        $incomeByMonth = array_fill(1, 12, 0.0);
-        $expenseByMonth = array_fill(1, 12, 0.0);
-
-        $incomeRows = Income::whereBetween('income_date', [$from, $to])->get(['income_date', 'amount']);
-        foreach ($incomeRows as $r) {
-            $m = Carbon::parse($r->income_date)->month;
-            $incomeByMonth[$m] += (float)$r->amount;
-        }
-
-        $expenseRows = Expense::whereBetween('expense_date', [$from, $to])->get(['expense_date', 'amount']);
-        foreach ($expenseRows as $r) {
-            $m = Carbon::parse($r->expense_date)->month;
-            $expenseByMonth[$m] += (float)$r->amount;
-        }
-
-        $profit = [];
-        for ($m = 1; $m <= 12; $m++) {
-            $profit[$m] = $incomeByMonth[$m] - $expenseByMonth[$m];
-        }
-
-        return $profit;
-    }
-public function prevYearMonthlyIncomeComparison(Request $request)
-    {
-        $year = (int)($request->query('year') ?: now()->year);
+        $year = (int) ($request->query('year') ?: now()->year);
         $prev = $year - 1;
 
-        $fromYear = Carbon::create($year, 1, 1)->startOfDay()->toDateString();
-        $toYear   = Carbon::create($year, 12, 31)->endOfDay()->toDateString();
-
-        $fromPrev = Carbon::create($prev, 1, 1)->startOfDay()->toDateString();
-        $toPrev   = Carbon::create($prev, 12, 31)->endOfDay()->toDateString();
+        ['from' => $fromYear, 'to' => $toYear] = $this->reports->yearRange($year);
+        ['from' => $fromPrev, 'to' => $toPrev] = $this->reports->yearRange($prev);
 
         // Income rows (DB-agnostic)
-        $rowsYear = Income::whereBetween('income_date', [$fromYear, $toYear])->get(['income_date', 'amount']);
-        $rowsPrev = Income::whereBetween('income_date', [$fromPrev, $toPrev])->get(['income_date', 'amount']);
+        $incomeByMonthYear = $this->reports->bucketByMonth(
+            Income::whereBetween('income_date', [$fromYear, $toYear])->get(['income_date', 'amount']),
+            'income_date'
+        );
+        $incomeByMonthPrev = $this->reports->bucketByMonth(
+            Income::whereBetween('income_date', [$fromPrev, $toPrev])->get(['income_date', 'amount']),
+            'income_date'
+        );
 
-        $incomeByMonthYear = array_fill(1, 12, 0.0);
-        $incomeByMonthPrev = array_fill(1, 12, 0.0);
-
-        foreach ($rowsYear as $r) {
-            $m = Carbon::parse($r->income_date)->month;
-            $incomeByMonthYear[$m] += (float)$r->amount;
-        }
-
-        foreach ($rowsPrev as $r) {
-            $m = Carbon::parse($r->income_date)->month;
-            $incomeByMonthPrev[$m] += (float)$r->amount;
-        }
-
-        $labels = [];
-        for ($m = 1; $m <= 12; $m++) {
-            $labels[] = Carbon::create($year, $m, 1)->format('M');
-        }
+        $labels = $this->reports->monthLabels($year);
 
         return view('reports.prev_year_monthly_income', [
             'year' => $year,

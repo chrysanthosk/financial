@@ -3,13 +3,13 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\ConfigEntityRequest;
+use App\Models\Employee;
 use App\Models\ExpenseCategory;
 use App\Models\IncomeSource;
 use App\Models\PaymentMethod;
 use App\Models\SystemSetting;
-use App\Models\Employee;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 
 class ConfigurationController extends Controller
 {
@@ -62,8 +62,8 @@ class ConfigurationController extends Controller
         $system = SystemSetting::safeCurrent();
 
         // If settings table exists but record doesn't, create it.
-        if (!$system) {
-            $system = new SystemSetting();
+        if (! $system) {
+            $system = new SystemSetting;
         }
 
         $system->header_name = $data['header_name'];
@@ -78,36 +78,16 @@ class ConfigurationController extends Controller
     | Income Sources
     |--------------------------------------------------------------------------
     */
-    public function storeIncomeSource(Request $request)
+    public function storeIncomeSource(ConfigEntityRequest $request)
     {
-        $data = $request->validate([
-            'name' => ['required', 'string', 'max:255'],
-            'sort_order' => ['nullable', 'integer', 'min:0', 'max:9999'],
-            'is_active' => ['nullable', 'boolean'],
-        ]);
-
-        IncomeSource::create([
-            'name' => $data['name'],
-            'sort_order' => $data['sort_order'] ?? 0,
-            'is_active' => (bool)($data['is_active'] ?? true),
-        ]);
+        IncomeSource::create($request->configData());
 
         return back()->with('status', 'Income source added.');
     }
 
-    public function updateIncomeSource(Request $request, IncomeSource $incomeSource)
+    public function updateIncomeSource(ConfigEntityRequest $request, IncomeSource $incomeSource)
     {
-        $data = $request->validate([
-            'name' => ['required', 'string', 'max:255'],
-            'sort_order' => ['nullable', 'integer', 'min:0', 'max:9999'],
-            'is_active' => ['nullable', 'boolean'],
-        ]);
-
-        $incomeSource->update([
-            'name' => $data['name'],
-            'sort_order' => $data['sort_order'] ?? 0,
-            'is_active' => (bool)($data['is_active'] ?? false),
-        ]);
+        $incomeSource->update($request->configData());
 
         return back()->with('status', 'Income source updated.');
     }
@@ -121,6 +101,7 @@ class ConfigurationController extends Controller
         }
 
         $incomeSource->delete();
+
         return back()->with('status', 'Income source deleted.');
     }
 
@@ -129,36 +110,16 @@ class ConfigurationController extends Controller
     | Expense Categories
     |--------------------------------------------------------------------------
     */
-    public function storeExpenseCategory(Request $request)
+    public function storeExpenseCategory(ConfigEntityRequest $request)
     {
-        $data = $request->validate([
-            'name' => ['required', 'string', 'max:255'],
-            'sort_order' => ['nullable', 'integer', 'min:0', 'max:9999'],
-            'is_active' => ['nullable', 'boolean'],
-        ]);
-
-        ExpenseCategory::create([
-            'name' => $data['name'],
-            'sort_order' => $data['sort_order'] ?? 0,
-            'is_active' => (bool)($data['is_active'] ?? true),
-        ]);
+        ExpenseCategory::create($request->configData());
 
         return back()->with('status', 'Expense category added.');
     }
 
-    public function updateExpenseCategory(Request $request, ExpenseCategory $expenseCategory)
+    public function updateExpenseCategory(ConfigEntityRequest $request, ExpenseCategory $expenseCategory)
     {
-        $data = $request->validate([
-            'name' => ['required', 'string', 'max:255'],
-            'sort_order' => ['nullable', 'integer', 'min:0', 'max:9999'],
-            'is_active' => ['nullable', 'boolean'],
-        ]);
-
-        $expenseCategory->update([
-            'name' => $data['name'],
-            'sort_order' => $data['sort_order'] ?? 0,
-            'is_active' => (bool)($data['is_active'] ?? false),
-        ]);
+        $expenseCategory->update($request->configData());
 
         return back()->with('status', 'Expense category updated.');
     }
@@ -172,6 +133,7 @@ class ConfigurationController extends Controller
         }
 
         $expenseCategory->delete();
+
         return back()->with('status', 'Expense category deleted.');
     }
 
@@ -180,36 +142,16 @@ class ConfigurationController extends Controller
     | Payment Methods
     |--------------------------------------------------------------------------
     */
-    public function storePaymentMethod(Request $request)
+    public function storePaymentMethod(ConfigEntityRequest $request)
     {
-        $data = $request->validate([
-            'name' => ['required', 'string', 'max:255'],
-            'sort_order' => ['nullable', 'integer', 'min:0', 'max:9999'],
-            'is_active' => ['nullable', 'boolean'],
-        ]);
-
-        PaymentMethod::create([
-            'name' => $data['name'],
-            'sort_order' => $data['sort_order'] ?? 0,
-            'is_active' => (bool)($data['is_active'] ?? true),
-        ]);
+        PaymentMethod::create($request->configData());
 
         return back()->with('status', 'Payment method added.');
     }
 
-    public function updatePaymentMethod(Request $request, PaymentMethod $paymentMethod)
+    public function updatePaymentMethod(ConfigEntityRequest $request, PaymentMethod $paymentMethod)
     {
-        $data = $request->validate([
-            'name' => ['required', 'string', 'max:255'],
-            'sort_order' => ['nullable', 'integer', 'min:0', 'max:9999'],
-            'is_active' => ['nullable', 'boolean'],
-        ]);
-
-        $paymentMethod->update([
-            'name' => $data['name'],
-            'sort_order' => $data['sort_order'] ?? 0,
-            'is_active' => (bool)($data['is_active'] ?? false),
-        ]);
+        $paymentMethod->update($request->configData());
 
         return back()->with('status', 'Payment method updated.');
     }
@@ -223,6 +165,7 @@ class ConfigurationController extends Controller
         }
 
         $paymentMethod->delete();
+
         return back()->with('status', 'Payment method deleted.');
     }
 
@@ -231,36 +174,16 @@ class ConfigurationController extends Controller
     | Employees (NEW)
     |--------------------------------------------------------------------------
     */
-    public function storeEmployee(Request $request)
+    public function storeEmployee(ConfigEntityRequest $request)
     {
-        $data = $request->validate([
-            'name' => ['required', 'string', 'max:255'],
-            'sort_order' => ['nullable', 'integer', 'min:0', 'max:9999'],
-            'is_active' => ['nullable', 'boolean'],
-        ]);
-
-        Employee::create([
-            'name' => $data['name'],
-            'sort_order' => $data['sort_order'] ?? 0,
-            'is_active' => (bool)($data['is_active'] ?? true),
-        ]);
+        Employee::create($request->configData());
 
         return back()->with('status', 'Employee added.');
     }
 
-    public function updateEmployee(Request $request, Employee $employee)
+    public function updateEmployee(ConfigEntityRequest $request, Employee $employee)
     {
-        $data = $request->validate([
-            'name' => ['required', 'string', 'max:255'],
-            'sort_order' => ['nullable', 'integer', 'min:0', 'max:9999'],
-            'is_active' => ['nullable', 'boolean'],
-        ]);
-
-        $employee->update([
-            'name' => $data['name'],
-            'sort_order' => $data['sort_order'] ?? 0,
-            'is_active' => (bool)($data['is_active'] ?? false),
-        ]);
+        $employee->update($request->configData());
 
         return back()->with('status', 'Employee updated.');
     }

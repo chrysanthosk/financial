@@ -3,13 +3,12 @@
 namespace App\Http\Controllers;
 
 use App\Support\Audit;
-use BaconQrCode\Renderer\ImageRenderer;
 use BaconQrCode\Renderer\Image\SvgImageBackEnd;
+use BaconQrCode\Renderer\ImageRenderer;
 use BaconQrCode\Renderer\RendererStyle\RendererStyle;
 use BaconQrCode\Writer;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Redirect;
-use Illuminate\Support\Str;
 
 class TwoFactorController extends Controller
 {
@@ -40,7 +39,7 @@ class TwoFactorController extends Controller
         $user->save();
 
         $issuer = config('app.name', 'Financial');
-        $label  = $user->email ?: ('user-' . $user->id);
+        $label = $user->email ?: ('user-'.$user->id);
 
         $otpauth = sprintf(
             'otpauth://totp/%s:%s?secret=%s&issuer=%s',
@@ -50,7 +49,7 @@ class TwoFactorController extends Controller
             rawurlencode($issuer)
         );
 
-        if (!class_exists(Writer::class)) {
+        if (! class_exists(Writer::class)) {
             return Redirect::route('profile.2fa.show')
                 ->with('status', 'Missing QR library. Run: composer require bacon/bacon-qr-code:^3.0');
         }
@@ -63,7 +62,7 @@ class TwoFactorController extends Controller
             request: $request,
             userId: $user->id,
             targetType: 'User',
-            targetId: (string)$user->id
+            targetId: (string) $user->id
         );
 
         return view('profile.2fa', [
@@ -81,11 +80,11 @@ class TwoFactorController extends Controller
             'code' => ['required', 'digits:6'],
         ]);
 
-        if (!$user->two_factor_secret) {
+        if (! $user->two_factor_secret) {
             return Redirect::route('profile.2fa.show')->with('status', 'Please generate a QR first.');
         }
 
-        if (!class_exists(\OTPHP\TOTP::class)) {
+        if (! class_exists(\OTPHP\TOTP::class)) {
             return Redirect::route('profile.2fa.show')
                 ->with('status', 'Missing OTP library. Run: composer require spomky-labs/otphp');
         }
@@ -94,7 +93,7 @@ class TwoFactorController extends Controller
         $secret = (string) $user->two_factor_secret;
 
         $issuer = config('app.name', 'Financial');
-        $label  = $user->email ?: ('user-' . $user->id);
+        $label = $user->email ?: ('user-'.$user->id);
 
         $totp = \OTPHP\TOTP::create($secret);
         $totp->setIssuer($issuer);
@@ -108,14 +107,14 @@ class TwoFactorController extends Controller
             $totp->verify($code, $now - 30) ||
             $totp->verify($code, $now + 30);
 
-        if (!$valid) {
+        if (! $valid) {
             Audit::log(
                 action: 'security.2fa_confirm_failed',
                 category: 'security',
                 request: $request,
                 userId: $user->id,
                 targetType: 'User',
-                targetId: (string)$user->id
+                targetId: (string) $user->id
             );
 
             return Redirect::back()->withErrors(['code' => 'Invalid code. Please try again.']);
@@ -123,13 +122,8 @@ class TwoFactorController extends Controller
 
         $user->two_factor_confirmed_at = now();
 
-        $recoveryCodes = [];
-        for ($i = 0; $i < 10; $i++) {
-            $recoveryCodes[] = strtoupper(Str::random(10)) . '-' . strtoupper(Str::random(10));
-        }
-
-        // encrypted:array cast => assign array directly
-        $user->two_factor_recovery_codes = $recoveryCodes;
+        // Only hashes are stored; plaintext is flashed for one-time display.
+        $recoveryCodes = $user->generateRecoveryCodes();
         $user->save();
 
         Audit::log(
@@ -138,10 +132,12 @@ class TwoFactorController extends Controller
             request: $request,
             userId: $user->id,
             targetType: 'User',
-            targetId: (string)$user->id
+            targetId: (string) $user->id
         );
 
-        return Redirect::route('profile.2fa.show')->with('status', '2FA enabled. Save your recovery codes.');
+        return Redirect::route('profile.2fa.show')
+            ->with('status', '2FA enabled. Save your recovery codes now — they will not be shown again.')
+            ->with('recoveryCodes', $recoveryCodes);
     }
 
     public function disable(Request $request)
@@ -163,7 +159,7 @@ class TwoFactorController extends Controller
             request: $request,
             userId: $user->id,
             targetType: 'User',
-            targetId: (string)$user->id
+            targetId: (string) $user->id
         );
 
         return Redirect::route('profile.2fa.show')->with('status', '2FA disabled.');
@@ -173,16 +169,12 @@ class TwoFactorController extends Controller
     {
         $user = $request->user();
 
-        if (!$user->hasTwoFactorEnabled()) {
+        if (! $user->hasTwoFactorEnabled()) {
             return Redirect::route('profile.2fa.show')->with('status', 'Enable 2FA first.');
         }
 
-        $recoveryCodes = [];
-        for ($i = 0; $i < 10; $i++) {
-            $recoveryCodes[] = strtoupper(Str::random(10)) . '-' . strtoupper(Str::random(10));
-        }
-
-        $user->two_factor_recovery_codes = $recoveryCodes;
+        // Only hashes are stored; plaintext is flashed for one-time display.
+        $recoveryCodes = $user->generateRecoveryCodes();
         $user->save();
 
         Audit::log(
@@ -191,19 +183,22 @@ class TwoFactorController extends Controller
             request: $request,
             userId: $user->id,
             targetType: 'User',
-            targetId: (string)$user->id
+            targetId: (string) $user->id
         );
 
-        return Redirect::route('profile.2fa.show')->with('status', 'Recovery codes regenerated. Save the new codes.');
+        return Redirect::route('profile.2fa.show')
+            ->with('status', 'Recovery codes regenerated. Save the new codes now — they will not be shown again.')
+            ->with('recoveryCodes', $recoveryCodes);
     }
 
     private function makeQrSvgDataUri(string $text, int $size = 220): string
     {
-        $renderer = new ImageRenderer(new RendererStyle($size), new SvgImageBackEnd());
+        $renderer = new ImageRenderer(new RendererStyle($size), new SvgImageBackEnd);
         $writer = new Writer($renderer);
 
         $svg = $writer->writeString($text);
-        return 'data:image/svg+xml;base64,' . base64_encode($svg);
+
+        return 'data:image/svg+xml;base64,'.base64_encode($svg);
     }
 
     private function generateBase32Secret(int $length = 24): string
@@ -213,6 +208,7 @@ class TwoFactorController extends Controller
         for ($i = 0; $i < $length; $i++) {
             $secret .= $alphabet[random_int(0, strlen($alphabet) - 1)];
         }
+
         return $secret;
     }
 }

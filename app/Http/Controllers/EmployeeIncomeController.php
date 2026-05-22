@@ -2,7 +2,7 @@
 
 namespace App\Http\Controllers;
 
-use App\Http\Controllers\Controller;
+use App\Http\Requests\EmployeeIncomeRequest;
 use App\Models\Employee;
 use App\Models\EmployeeIncome;
 use Illuminate\Http\Request;
@@ -11,7 +11,7 @@ class EmployeeIncomeController extends Controller
 {
     public function index(Request $request)
     {
-        $year = (int)($request->query('year', now()->year));
+        $year = (int) ($request->query('year', now()->year));
         $month = $request->query('month'); // optional filter
 
         $query = EmployeeIncome::query()
@@ -20,8 +20,8 @@ class EmployeeIncomeController extends Controller
             ->orderBy('year', 'desc')
             ->orderBy('month', 'desc');
 
-        if (!empty($month)) {
-            $query->where('month', (int)$month);
+        if (! empty($month)) {
+            $query->where('month', (int) $month);
         }
 
         $rows = $query->paginate(20)->withQueryString();
@@ -48,29 +48,9 @@ class EmployeeIncomeController extends Controller
         ]);
     }
 
-    public function store(Request $request)
+    public function store(EmployeeIncomeRequest $request)
     {
-        $data = $request->validate([
-            'employee_id' => ['required', 'exists:employees,id'],
-            'month' => ['required', 'integer', 'min:1', 'max:12'],
-            'year' => ['required', 'integer', 'min:2000', 'max:2100'],
-            'total_amount' => ['required', 'numeric', 'min:0', 'max:999999999.99'],
-        ]);
-
-        // Ensure unique per employee/month/year
-        $existing = EmployeeIncome::query()
-            ->where('employee_id', $data['employee_id'])
-            ->where('month', $data['month'])
-            ->where('year', $data['year'])
-            ->first();
-
-        if ($existing) {
-            return back()
-                ->withErrors(['employee_id' => 'Entry already exists for this employee and month/year. Edit the existing one instead.'])
-                ->withInput();
-        }
-
-        EmployeeIncome::create($data);
+        EmployeeIncome::create($request->validated());
 
         return redirect()->route('admin.emp_income.index')->with('status', 'Employee income added.');
     }
@@ -89,30 +69,9 @@ class EmployeeIncomeController extends Controller
         ]);
     }
 
-    public function update(Request $request, EmployeeIncome $emp_income)
+    public function update(EmployeeIncomeRequest $request, EmployeeIncome $emp_income)
     {
-        $data = $request->validate([
-            'employee_id' => ['required', 'exists:employees,id'],
-            'month' => ['required', 'integer', 'min:1', 'max:12'],
-            'year' => ['required', 'integer', 'min:2000', 'max:2100'],
-            'total_amount' => ['required', 'numeric', 'min:0', 'max:999999999.99'],
-        ]);
-
-        // Uniqueness check excluding current row
-        $dupe = EmployeeIncome::query()
-            ->where('employee_id', $data['employee_id'])
-            ->where('month', $data['month'])
-            ->where('year', $data['year'])
-            ->where('id', '!=', $emp_income->id)
-            ->exists();
-
-        if ($dupe) {
-            return back()
-                ->withErrors(['employee_id' => 'Another entry already exists for this employee and month/year.'])
-                ->withInput();
-        }
-
-        $emp_income->update($data);
+        $emp_income->update($request->validated());
 
         return redirect()->route('admin.emp_income.index')->with('status', 'Employee income updated.');
     }
@@ -120,6 +79,7 @@ class EmployeeIncomeController extends Controller
     public function destroy(EmployeeIncome $emp_income)
     {
         $emp_income->delete();
+
         return back()->with('status', 'Employee income deleted.');
     }
 }

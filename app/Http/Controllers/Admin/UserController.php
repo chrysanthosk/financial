@@ -3,11 +3,11 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\UserRequest;
 use App\Models\User;
 use App\Support\Audit;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Validation\Rule;
 
 class UserController extends Controller
 {
@@ -23,28 +23,22 @@ class UserController extends Controller
         return view('admin.users.create');
     }
 
-    public function store(Request $request)
+    public function store(UserRequest $request)
     {
-        $validated = $request->validate([
-            'first_name' => ['nullable', 'string', 'max:50'],
-            'last_name'  => ['nullable', 'string', 'max:50'],
-            'email'      => ['required', 'email', 'max:255', 'unique:users,email'],
-            'role'       => ['required', Rule::in(['admin', 'user'])],
-            'password'   => ['required', 'string', 'min:8', 'confirmed'],
-        ]);
+        $validated = $request->validated();
 
-        $fullName = trim(($validated['first_name'] ?? '') . ' ' . ($validated['last_name'] ?? ''));
+        $fullName = trim(($validated['first_name'] ?? '').' '.($validated['last_name'] ?? ''));
 
         $user = User::create([
             'first_name' => $validated['first_name'] ?? null,
-            'last_name'  => $validated['last_name'] ?? null,
+            'last_name' => $validated['last_name'] ?? null,
 
             // Keep legacy "name" populated for navbar/compatibility
-            'name'       => $fullName !== '' ? $fullName : 'User',
+            'name' => $fullName !== '' ? $fullName : 'User',
 
-            'email'      => $validated['email'],
-            'role'       => $validated['role'],
-            'password'   => Hash::make($validated['password']),
+            'email' => $validated['email'],
+            'role' => $validated['role'],
+            'password' => Hash::make($validated['password']),
         ]);
 
         Audit::log(
@@ -53,7 +47,7 @@ class UserController extends Controller
             request: $request,
             userId: $request->user()?->id,
             targetType: 'User',
-            targetId: (string)$user->id,
+            targetId: (string) $user->id,
             meta: [
                 'created_user_email' => $user->email,
                 'role' => $user->role,
@@ -70,38 +64,32 @@ class UserController extends Controller
         return view('admin.users.edit', compact('user'));
     }
 
-    public function update(Request $request, User $user)
+    public function update(UserRequest $request, User $user)
     {
-        $validated = $request->validate([
-            'first_name' => ['nullable', 'string', 'max:50'],
-            'last_name'  => ['nullable', 'string', 'max:50'],
-            'email'      => ['required', 'email', 'max:255', Rule::unique('users', 'email')->ignore($user->id)],
-            'role'       => ['required', Rule::in(['admin', 'user'])],
-            'password'   => ['nullable', 'string', 'min:8', 'confirmed'],
-        ]);
+        $validated = $request->validated();
 
         $before = [
             'first_name' => $user->first_name,
-            'last_name'  => $user->last_name,
-            'email'      => $user->email,
-            'role'       => $user->role,
+            'last_name' => $user->last_name,
+            'email' => $user->email,
+            'role' => $user->role,
         ];
 
-        $fullName = trim(($validated['first_name'] ?? '') . ' ' . ($validated['last_name'] ?? ''));
+        $fullName = trim(($validated['first_name'] ?? '').' '.($validated['last_name'] ?? ''));
 
         $data = [
             'first_name' => $validated['first_name'] ?? null,
-            'last_name'  => $validated['last_name'] ?? null,
+            'last_name' => $validated['last_name'] ?? null,
 
             // Keep legacy "name" updated too
-            'name'       => $fullName !== '' ? $fullName : ($user->name ?: 'User'),
+            'name' => $fullName !== '' ? $fullName : ($user->name ?: 'User'),
 
-            'email'      => $validated['email'],
-            'role'       => $validated['role'],
+            'email' => $validated['email'],
+            'role' => $validated['role'],
         ];
 
         $passwordChanged = false;
-        if (!empty($validated['password'])) {
+        if (! empty($validated['password'])) {
             $data['password'] = Hash::make($validated['password']);
             $passwordChanged = true;
         }
@@ -114,14 +102,14 @@ class UserController extends Controller
             request: $request,
             userId: $request->user()?->id,
             targetType: 'User',
-            targetId: (string)$user->id,
+            targetId: (string) $user->id,
             meta: [
                 'changed' => [
                     'first_name' => $before['first_name'] !== $user->first_name,
-                    'last_name'  => $before['last_name'] !== $user->last_name,
-                    'email'      => $before['email'] !== $user->email,
-                    'role'       => $before['role'] !== $user->role,
-                    'password'   => $passwordChanged,
+                    'last_name' => $before['last_name'] !== $user->last_name,
+                    'email' => $before['email'] !== $user->email,
+                    'role' => $before['role'] !== $user->role,
+                    'password' => $passwordChanged,
                 ],
                 'new_role' => $user->role,
             ]
@@ -150,8 +138,8 @@ class UserController extends Controller
         }
 
         $deletedEmail = $user->email;
-        $deletedRole  = $user->role;
-        $deletedId    = (string)$user->id;
+        $deletedRole = $user->role;
+        $deletedId = (string) $user->id;
 
         $user->delete();
 

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Auth\LoginRequest;
 use App\Models\TwoFactorTrustedDevice;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -17,22 +18,14 @@ class AuthenticatedSessionController extends Controller
         return view('auth.login');
     }
 
-    public function store(Request $request)
+    public function store(LoginRequest $request)
     {
-        $request->validate([
-            'email' => ['required', 'email'],
-            'password' => ['required'],
-        ]);
-
-        $remember = $request->boolean('remember');
-
-        if (!Auth::attempt($request->only('email', 'password'), $remember)) {
-            return back()
-                ->withErrors(['email' => 'Invalid credentials.'])
-                ->onlyInput('email');
-        }
+        // Validates credentials AND enforces rate limiting (5 attempts / lockout).
+        $request->authenticate();
 
         $request->session()->regenerate();
+
+        $remember = $request->boolean('remember');
 
         $user = Auth::user();
 
@@ -40,7 +33,7 @@ class AuthenticatedSessionController extends Controller
         if ($user && method_exists($user, 'hasTwoFactorEnabled') && $user->hasTwoFactorEnabled()) {
 
             // If trusted device cookie is valid -> skip challenge
-            if ($this->trustedDeviceIsValidForUser($request, (int)$user->id)) {
+            if ($this->trustedDeviceIsValidForUser($request, (int) $user->id)) {
                 return redirect()->intended(route('dashboard'));
             }
 
@@ -84,23 +77,23 @@ class AuthenticatedSessionController extends Controller
     private function trustedDeviceIsValidForUser(Request $request, int $userId): bool
     {
         $cookie = $request->cookie(self::TRUSTED_COOKIE);
-        if (!$cookie) {
+        if (! $cookie) {
             return false;
         }
 
         // Cookie format: "{deviceId}.{token}"
-        $parts = explode('.', (string)$cookie, 2);
+        $parts = explode('.', (string) $cookie, 2);
         if (count($parts) !== 2) {
             return false;
         }
 
         [$deviceIdRaw, $token] = $parts;
 
-        if (!ctype_digit($deviceIdRaw) || $token === '') {
+        if (! ctype_digit($deviceIdRaw) || $token === '') {
             return false;
         }
 
-        $deviceId = (int)$deviceIdRaw;
+        $deviceId = (int) $deviceIdRaw;
         $tokenHash = hash('sha256', $token);
 
         $row = TwoFactorTrustedDevice::query()
@@ -109,11 +102,11 @@ class AuthenticatedSessionController extends Controller
             ->where('expires_at', '>', now())
             ->first();
 
-        if (!$row) {
+        if (! $row) {
             return false;
         }
 
-        if (!hash_equals((string)$row->token_hash, (string)$tokenHash)) {
+        if (! hash_equals((string) $row->token_hash, (string) $tokenHash)) {
             return false;
         }
 

@@ -1,26 +1,23 @@
 <?php
 
-use Illuminate\Support\Facades\Route;
-
-use App\Http\Controllers\ProfileController;
-use App\Http\Controllers\ThemeController;
-use App\Http\Controllers\IncomeController;
-use App\Http\Controllers\ExpenseController;
-use App\Http\Controllers\ExpenseTemplateController;
-use App\Http\Controllers\EmailChangeController;
-use App\Http\Controllers\TwoFactorController;
-use App\Http\Controllers\TwoFactorChallengeController;
-use App\Http\Controllers\EmployeeIncomeController;
-
-use App\Http\Controllers\Admin\UserController as AdminUserController;
-use App\Http\Controllers\Admin\SmtpSettingsController;
-use App\Http\Controllers\Admin\ConfigurationController;
 use App\Http\Controllers\Admin\AuditLogController;
+use App\Http\Controllers\Admin\ConfigurationController;
 use App\Http\Controllers\Admin\ImportController;
-
+use App\Http\Controllers\Admin\SmtpSettingsController;
+use App\Http\Controllers\Admin\UserController as AdminUserController;
 use App\Http\Controllers\BonusController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\EmailChangeController;
+use App\Http\Controllers\EmployeeIncomeController;
+use App\Http\Controllers\ExpenseController;
+use App\Http\Controllers\ExpenseTemplateController;
+use App\Http\Controllers\IncomeController;
+use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\ReportsController;
+use App\Http\Controllers\ThemeController;
+use App\Http\Controllers\TwoFactorChallengeController;
+use App\Http\Controllers\TwoFactorController;
+use Illuminate\Support\Facades\Route;
 
 /*
 |--------------------------------------------------------------------------
@@ -42,6 +39,7 @@ Route::get('/two-factor-challenge', [TwoFactorChallengeController::class, 'show'
     ->name('two-factor.challenge.show');
 
 Route::post('/two-factor-challenge', [TwoFactorChallengeController::class, 'verify'])
+    ->middleware('throttle:5,1')
     ->name('two-factor.challenge.verify');
 
 Route::post('/two-factor-challenge/cancel', [TwoFactorChallengeController::class, 'cancel'])
@@ -128,13 +126,13 @@ Route::middleware('auth')->group(function () {
     |--------------------------------------------------------------------------
     */
     Route::prefix('expenses/recurring')->name('expenses.recurring.')->group(function () {
-        Route::get('/',                    [ExpenseTemplateController::class, 'index'])->name('index');
-        Route::get('/create',              [ExpenseTemplateController::class, 'create'])->name('create');
-        Route::post('/',                   [ExpenseTemplateController::class, 'store'])->name('store');
-        Route::get('/{template}/edit',     [ExpenseTemplateController::class, 'edit'])->name('edit');
-        Route::put('/{template}',          [ExpenseTemplateController::class, 'update'])->name('update');
-        Route::delete('/{template}',       [ExpenseTemplateController::class, 'destroy'])->name('destroy');
-        Route::post('/{template}/insert',  [ExpenseTemplateController::class, 'insert'])->name('insert');
+        Route::get('/', [ExpenseTemplateController::class, 'index'])->name('index');
+        Route::get('/create', [ExpenseTemplateController::class, 'create'])->name('create');
+        Route::post('/', [ExpenseTemplateController::class, 'store'])->name('store');
+        Route::get('/{template}/edit', [ExpenseTemplateController::class, 'edit'])->name('edit');
+        Route::put('/{template}', [ExpenseTemplateController::class, 'update'])->name('update');
+        Route::delete('/{template}', [ExpenseTemplateController::class, 'destroy'])->name('destroy');
+        Route::post('/{template}/insert', [ExpenseTemplateController::class, 'insert'])->name('insert');
     });
 
     /*
@@ -305,4 +303,4 @@ Route::middleware(['auth', 'admin'])
         Route::post('/import/{type}/commit', [ImportController::class, 'commit'])->name('import.commit');
     });
 
-require __DIR__ . '/auth.php';
+require __DIR__.'/auth.php';
