@@ -25,11 +25,14 @@ class ProfileTest extends TestCase
     {
         $user = User::factory()->create();
 
+        // This app stores names as first_name/last_name and handles email
+        // changes through a separate confirmation flow (EmailChangeController),
+        // so profile update never touches the email directly.
         $response = $this
             ->actingAs($user)
             ->patch('/profile', [
-                'name' => 'Test User',
-                'email' => 'test@example.com',
+                'first_name' => 'Test',
+                'last_name' => 'User',
             ]);
 
         $response
@@ -38,9 +41,9 @@ class ProfileTest extends TestCase
 
         $user->refresh();
 
+        $this->assertSame('Test', $user->first_name);
+        $this->assertSame('User', $user->last_name);
         $this->assertSame('Test User', $user->name);
-        $this->assertSame('test@example.com', $user->email);
-        $this->assertNull($user->email_verified_at);
     }
 
     public function test_email_verification_status_is_unchanged_when_the_email_address_is_unchanged(): void
@@ -91,7 +94,7 @@ class ProfileTest extends TestCase
             ]);
 
         $response
-            ->assertSessionHasErrorsIn('userDeletion', 'password')
+            ->assertSessionHasErrors('password')
             ->assertRedirect('/profile');
 
         $this->assertNotNull($user->fresh());
