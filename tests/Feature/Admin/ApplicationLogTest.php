@@ -91,6 +91,52 @@ class ApplicationLogTest extends TestCase
         $this->assertSame(1, $response->viewData('logs')->total());
     }
 
+    public function test_default_sort_is_newest_first(): void
+    {
+        $this->seedLog();
+
+        $items = $this->actingAs($this->admin())
+            ->get(route('admin.settings.logs.index'))
+            ->viewData('logs')->items();
+
+        $this->assertSame('2026-05-22 12:00:00', $items[0]['timestamp']);
+        $this->assertSame('2026-05-20 10:00:00', $items[2]['timestamp']);
+    }
+
+    public function test_sort_by_time_ascending(): void
+    {
+        $this->seedLog();
+
+        $items = $this->actingAs($this->admin())
+            ->get(route('admin.settings.logs.index', ['sort' => 'time', 'direction' => 'asc']))
+            ->viewData('logs')->items();
+
+        $this->assertSame('2026-05-20 10:00:00', $items[0]['timestamp']);
+        $this->assertSame('2026-05-22 12:00:00', $items[2]['timestamp']);
+    }
+
+    public function test_sort_by_level_severity(): void
+    {
+        $this->seedLog();
+
+        // asc = most severe first (error < warning < info by severity rank)
+        $items = $this->actingAs($this->admin())
+            ->get(route('admin.settings.logs.index', ['sort' => 'level', 'direction' => 'asc']))
+            ->viewData('logs')->items();
+
+        $this->assertSame('ERROR', $items[0]['level']);
+        $this->assertSame('INFO', $items[2]['level']);
+    }
+
+    public function test_invalid_sort_falls_back_to_time(): void
+    {
+        $this->seedLog();
+
+        $this->actingAs($this->admin())
+            ->get(route('admin.settings.logs.index', ['sort' => 'bogus']))
+            ->assertOk();
+    }
+
     public function test_non_admin_is_forbidden(): void
     {
         $this->actingAs(User::factory()->create(['role' => 'user']))
