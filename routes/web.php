@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Admin\ApplicationLogController;
 use App\Http\Controllers\Admin\AuditLogController;
 use App\Http\Controllers\Admin\ConfigurationController;
 use App\Http\Controllers\Admin\ImportController;
@@ -233,6 +234,13 @@ Route::middleware(['auth', 'admin'])
             |--------------------------------------------------------------------------
             */
             Route::get('/configuration', [ConfigurationController::class, 'index'])->name('config.index');
+
+            /*
+            |--------------------------------------------------------------------------
+            | Application Log (read-only viewer)
+            |--------------------------------------------------------------------------
+            */
+            Route::get('/logs', [ApplicationLogController::class, 'index'])->name('logs.index');
 
             // System
             Route::put('/configuration/system', [ConfigurationController::class, 'updateSystem'])

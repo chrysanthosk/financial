@@ -273,6 +273,14 @@
                                     </li>
                                 @endif
 
+                                @if(\Illuminate\Support\Facades\Route::has('admin.settings.logs.index'))
+                                    <li>
+                                        <a href="{{ route('admin.settings.logs.index') }}" class="dropdown-item">
+                                            <i class="fas fa-file-lines me-2"></i> Application Log
+                                        </a>
+                                    </li>
+                                @endif
+
                                 <li><hr class="dropdown-divider"></li>
                                 <li><span class="dropdown-item-text text-muted small">More settings coming soon</span></li>
                             </ul>
