@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\ExpenseRequest;
 use App\Models\Expense;
 use App\Models\ExpenseCategory;
 use App\Models\PaymentMethod;
@@ -9,7 +10,6 @@ use App\Support\Audit;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Validation\Rule;
 
 class ExpenseController extends Controller
 {
@@ -17,28 +17,28 @@ class ExpenseController extends Controller
     {
         $month = $request->string('month')->toString();
 
-        if (!preg_match('/^\d{4}-\d{2}$/', $month)) {
+        if (! preg_match('/^\d{4}-\d{2}$/', $month)) {
             $month = now()->format('Y-m');
         }
 
         $categoryId = $request->integer('category_id') ?: null;
-        $methodId   = $request->integer('method_id') ?: null;
+        $methodId = $request->integer('method_id') ?: null;
 
         // NEW: sorting params (date toggle)
         $allowedSorts = ['expense_date'];
         $sort = $request->string('sort')->toString() ?: 'expense_date';
-        if (!in_array($sort, $allowedSorts, true)) {
+        if (! in_array($sort, $allowedSorts, true)) {
             $sort = 'expense_date';
         }
 
         $direction = strtolower($request->string('direction')->toString() ?: 'desc');
-        if (!in_array($direction, ['asc', 'desc'], true)) {
+        if (! in_array($direction, ['asc', 'desc'], true)) {
             $direction = 'desc';
         }
 
         // Use [startOfMonth, startOfNextMonth) to avoid end-of-month/time issues
         $start = Carbon::createFromFormat('Y-m', $month)->startOfMonth();
-        $end   = (clone $start)->addMonth(); // exclusive
+        $end = (clone $start)->addMonth(); // exclusive
 
         $categories = ExpenseCategory::where('is_active', true)
             ->orderBy('sort_order')->orderBy('name')->get();
@@ -77,23 +77,23 @@ class ExpenseController extends Controller
             ->selectRaw('payment_method_id, SUM(amount) as total')
             ->where('expense_date', '>=', $start)
             ->where('expense_date', '<', $end)
-            ->when($categoryId, fn($q) => $q->where('expense_category_id', $categoryId))
+            ->when($categoryId, fn ($q) => $q->where('expense_category_id', $categoryId))
             ->groupBy('payment_method_id')
             ->pluck('total', 'payment_method_id');
 
         return view('expenses.index', [
-            'month'           => $month,
-            'categoryId'      => $categoryId,
-            'methodId'        => $methodId,
-            'categories'      => $categories,
-            'methods'         => $methods,
-            'expenses'        => $expenses,
-            'monthTotal'      => $monthTotal,
+            'month' => $month,
+            'categoryId' => $categoryId,
+            'methodId' => $methodId,
+            'categories' => $categories,
+            'methods' => $methods,
+            'expenses' => $expenses,
+            'monthTotal' => $monthTotal,
             'totalsPerMethod' => $totalsPerMethod,
 
             // NEW: pass sort state to blade
-            'sort'            => $sort,
-            'direction'       => $direction,
+            'sort' => $sort,
+            'direction' => $direction,
         ]);
     }
 
@@ -113,31 +113,15 @@ class ExpenseController extends Controller
 
         return view('expenses.create', [
             'defaultDate' => now()->toDateString(),
-            'categories'  => $categories,
-            'methods'     => $methods,
-            'payees'      => $this->payeeSuggestions(),
+            'categories' => $categories,
+            'methods' => $methods,
+            'payees' => $this->payeeSuggestions(),
         ]);
     }
 
-    public function store(Request $request)
+    public function store(ExpenseRequest $request)
     {
-        $validCategoryIds = ExpenseCategory::where('is_active', true)->pluck('id')->all();
-        $validMethodIds   = PaymentMethod::where('is_active', true)->pluck('id')->all();
-
-        $validated = $request->validate([
-            'expense_date'         => ['required', 'date'],
-            'payee_name'           => ['required', 'string', 'max:120'],
-            'expense_category_id'  => ['required', Rule::in($validCategoryIds)],
-            'payment_method_id'    => ['required', Rule::in($validMethodIds)],
-            'amount'               => ['required', 'numeric', 'min:0'],
-            'cheque_no'            => ['nullable', 'string', 'max:80'],
-            'reason'               => ['nullable', 'string', 'max:255'],
-            'is_paid'              => ['nullable', 'boolean'],
-        ]);
-
-        // checkbox: if not sent -> false
-        $validated['is_paid'] = $request->boolean('is_paid');
-
+        $validated = $request->validated();
         $validated['created_by'] = Auth::id();
 
         $expense = Expense::create($validated);
@@ -148,16 +132,16 @@ class ExpenseController extends Controller
             request: $request,
             userId: $request->user()?->id,
             targetType: 'Expense',
-            targetId: (string)$expense->id,
+            targetId: (string) $expense->id,
             meta: [
-                'expense_date' => (string)$expense->expense_date,
-                'payee_name' => (string)$expense->payee_name,
-                'expense_category_id' => (int)$expense->expense_category_id,
-                'payment_method_id' => (int)$expense->payment_method_id,
-                'amount' => (float)$expense->amount,
-                'cheque_no_present' => !empty($expense->cheque_no),
-                'reason_present' => !empty($expense->reason),
-                'is_paid' => (bool)$expense->is_paid,
+                'expense_date' => (string) $expense->expense_date,
+                'payee_name' => (string) $expense->payee_name,
+                'expense_category_id' => (int) $expense->expense_category_id,
+                'payment_method_id' => (int) $expense->payment_method_id,
+                'amount' => (float) $expense->amount,
+                'cheque_no_present' => ! empty($expense->cheque_no),
+                'reason_present' => ! empty($expense->reason),
+                'is_paid' => (bool) $expense->is_paid,
             ]
         );
 
@@ -173,10 +157,10 @@ class ExpenseController extends Controller
             ->orderBy('sort_order')->orderBy('name')->get();
 
         return view('expenses.edit', [
-            'expense'     => $expense->load(['category', 'method']),
-            'categories'  => $categories,
-            'methods'     => $methods,
-            'payees'      => $this->payeeSuggestions(),
+            'expense' => $expense->load(['category', 'method']),
+            'categories' => $categories,
+            'methods' => $methods,
+            'payees' => $this->payeeSuggestions(),
         ]);
     }
 
@@ -197,46 +181,32 @@ class ExpenseController extends Controller
             ->all();
     }
 
-    public function update(Request $request, Expense $expense)
+    public function update(ExpenseRequest $request, Expense $expense)
     {
-        $validCategoryIds = ExpenseCategory::where('is_active', true)->pluck('id')->all();
-        $validMethodIds   = PaymentMethod::where('is_active', true)->pluck('id')->all();
-
-        $validated = $request->validate([
-            'expense_date'         => ['required', 'date'],
-            'payee_name'           => ['required', 'string', 'max:120'],
-            'expense_category_id'  => ['required', Rule::in($validCategoryIds)],
-            'payment_method_id'    => ['required', Rule::in($validMethodIds)],
-            'amount'               => ['required', 'numeric', 'min:0'],
-            'cheque_no'            => ['nullable', 'string', 'max:80'],
-            'reason'               => ['nullable', 'string', 'max:255'],
-            'is_paid'              => ['nullable', 'boolean'],
-        ]);
-
-        $validated['is_paid'] = $request->boolean('is_paid');
+        $validated = $request->validated();
 
         $before = [
-            'expense_date' => (string)$expense->expense_date,
-            'payee_name' => (string)$expense->payee_name,
-            'expense_category_id' => (int)$expense->expense_category_id,
-            'payment_method_id' => (int)$expense->payment_method_id,
-            'amount' => (float)$expense->amount,
-            'cheque_no' => (string)($expense->cheque_no ?? ''),
-            'reason' => (string)($expense->reason ?? ''),
-            'is_paid' => (bool)$expense->is_paid,
+            'expense_date' => (string) $expense->expense_date,
+            'payee_name' => (string) $expense->payee_name,
+            'expense_category_id' => (int) $expense->expense_category_id,
+            'payment_method_id' => (int) $expense->payment_method_id,
+            'amount' => (float) $expense->amount,
+            'cheque_no' => (string) ($expense->cheque_no ?? ''),
+            'reason' => (string) ($expense->reason ?? ''),
+            'is_paid' => (bool) $expense->is_paid,
         ];
 
         $expense->update($validated);
 
         $after = [
-            'expense_date' => (string)$expense->expense_date,
-            'payee_name' => (string)$expense->payee_name,
-            'expense_category_id' => (int)$expense->expense_category_id,
-            'payment_method_id' => (int)$expense->payment_method_id,
-            'amount' => (float)$expense->amount,
-            'cheque_no' => (string)($expense->cheque_no ?? ''),
-            'reason' => (string)($expense->reason ?? ''),
-            'is_paid' => (bool)$expense->is_paid,
+            'expense_date' => (string) $expense->expense_date,
+            'payee_name' => (string) $expense->payee_name,
+            'expense_category_id' => (int) $expense->expense_category_id,
+            'payment_method_id' => (int) $expense->payment_method_id,
+            'amount' => (float) $expense->amount,
+            'cheque_no' => (string) ($expense->cheque_no ?? ''),
+            'reason' => (string) ($expense->reason ?? ''),
+            'is_paid' => (bool) $expense->is_paid,
         ];
 
         Audit::log(
@@ -245,7 +215,7 @@ class ExpenseController extends Controller
             request: $request,
             userId: $request->user()?->id,
             targetType: 'Expense',
-            targetId: (string)$expense->id,
+            targetId: (string) $expense->id,
             meta: [
                 'changed' => [
                     'expense_date' => $before['expense_date'] !== $after['expense_date'],
@@ -284,17 +254,17 @@ class ExpenseController extends Controller
     public function destroy(Request $request, Expense $expense)
     {
         $meta = [
-            'expense_date' => (string)$expense->expense_date,
-            'payee_name' => (string)$expense->payee_name,
-            'expense_category_id' => (int)$expense->expense_category_id,
-            'payment_method_id' => (int)$expense->payment_method_id,
-            'amount' => (float)$expense->amount,
-            'cheque_no_present' => !empty($expense->cheque_no),
-            'reason_present' => !empty($expense->reason),
-            'is_paid' => (bool)$expense->is_paid,
+            'expense_date' => (string) $expense->expense_date,
+            'payee_name' => (string) $expense->payee_name,
+            'expense_category_id' => (int) $expense->expense_category_id,
+            'payment_method_id' => (int) $expense->payment_method_id,
+            'amount' => (float) $expense->amount,
+            'cheque_no_present' => ! empty($expense->cheque_no),
+            'reason_present' => ! empty($expense->reason),
+            'is_paid' => (bool) $expense->is_paid,
         ];
 
-        $id = (string)$expense->id;
+        $id = (string) $expense->id;
 
         $expense->delete();
 
