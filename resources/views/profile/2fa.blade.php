@@ -128,7 +128,7 @@
       <div class="card">
         <div class="card-header d-flex justify-content-between align-items-center">
           <strong>Recovery codes</strong>
-          @if($user->hasTwoFactorEnabled() && !empty($user->two_factor_recovery_codes))
+          @if(session('recoveryCodes'))
             <button id="copyRecoveryBtn" type="button" class="btn btn-xs btn-outline-secondary">
               <i class="fas fa-copy"></i> Copy
             </button>
@@ -136,25 +136,30 @@
         </div>
 
         <div class="card-body">
-          @if($user->hasTwoFactorEnabled() && !empty($user->two_factor_recovery_codes))
-            @php
-              $codes = is_array($user->two_factor_recovery_codes) ? $user->two_factor_recovery_codes : [];
-            @endphp
+          @if(session('recoveryCodes'))
+            @php $codes = session('recoveryCodes'); @endphp
 
+            <p class="text-danger fw-bold">
+              These codes are shown only once. Save them somewhere safe now.
+            </p>
             <p class="text-muted">
-              Save these codes somewhere safe. Each code can be used once if you lose your authenticator.
+              Each code can be used once to sign in if you lose your authenticator.
             </p>
 
             <div class="p-3 rounded border recovery-codes-box"
                  id="recoveryCodesBox"
                  style="font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;">
-              @forelse($codes as $c)
+              @foreach($codes as $c)
                 <div>{{ $c }}</div>
-              @empty
-                <div class="text-muted">No recovery codes available.</div>
-              @endforelse
+              @endforeach
             </div>
 
+          @elseif($user->hasTwoFactorEnabled())
+            <p class="text-muted">
+              You have <strong>{{ $user->recoveryCodesRemaining() }}</strong> unused recovery code(s).
+              For security they are stored hashed and cannot be shown again — use
+              “Regenerate recovery codes” if you need a new set.
+            </p>
           @else
             <div class="text-muted">Recovery codes will appear here after 2FA is enabled.</div>
           @endif
@@ -165,7 +170,7 @@
   </div>
 </div>
 
-@if($user->hasTwoFactorEnabled() && !empty($user->two_factor_recovery_codes))
+@if(session('recoveryCodes'))
 <script>
 (function () {
   const btn = document.getElementById('copyRecoveryBtn');
