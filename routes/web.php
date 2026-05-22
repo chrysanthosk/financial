@@ -3,6 +3,7 @@
 use App\Http\Controllers\Admin\ApplicationLogController;
 use App\Http\Controllers\Admin\AuditLogController;
 use App\Http\Controllers\Admin\ConfigurationController;
+use App\Http\Controllers\Admin\DataMaintenanceController;
 use App\Http\Controllers\Admin\ImportController;
 use App\Http\Controllers\Admin\SmtpSettingsController;
 use App\Http\Controllers\Admin\UserController as AdminUserController;
@@ -241,6 +242,14 @@ Route::middleware(['auth', 'admin'])
             |--------------------------------------------------------------------------
             */
             Route::get('/logs', [ApplicationLogController::class, 'index'])->name('logs.index');
+
+            /*
+            |--------------------------------------------------------------------------
+            | Data Maintenance (allowlisted truncates only)
+            |--------------------------------------------------------------------------
+            */
+            Route::get('/maintenance', [DataMaintenanceController::class, 'index'])->name('maintenance.index');
+            Route::post('/maintenance/{key}', [DataMaintenanceController::class, 'truncate'])->name('maintenance.truncate');
 
             // System
             Route::put('/configuration/system', [ConfigurationController::class, 'updateSystem'])

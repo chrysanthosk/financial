@@ -281,6 +281,14 @@
                                     </li>
                                 @endif
 
+                                @if(\Illuminate\Support\Facades\Route::has('admin.settings.maintenance.index'))
+                                    <li>
+                                        <a href="{{ route('admin.settings.maintenance.index') }}" class="dropdown-item">
+                                            <i class="fas fa-screwdriver-wrench me-2"></i> Data Maintenance
+                                        </a>
+                                    </li>
+                                @endif
+
                                 <li><hr class="dropdown-divider"></li>
                                 <li><span class="dropdown-item-text text-muted small">More settings coming soon</span></li>
                             </ul>
