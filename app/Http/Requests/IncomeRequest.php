@@ -21,7 +21,8 @@ class IncomeRequest extends FormRequest
         return [
             'income_date' => ['required', 'date'],
             'income_source_id' => ['required', Rule::in($validSourceIds)],
-            'amount' => ['required', 'numeric', 'min:0'],
+            // Column is decimal(12,2); cap below its max to avoid overflow.
+            'amount' => ['required', 'numeric', 'min:0', 'max:9999999999.99'],
             'note' => ['nullable', 'string', 'max:255'],
         ];
     }

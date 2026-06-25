@@ -31,7 +31,8 @@ class ExpenseRequest extends FormRequest
             'payee_name' => ['required', 'string', 'max:120'],
             'expense_category_id' => ['required', Rule::in($validCategoryIds)],
             'payment_method_id' => ['required', Rule::in($validMethodIds)],
-            'amount' => ['required', 'numeric', 'min:0'],
+            // Column is decimal(12,2); cap below its max to avoid overflow.
+            'amount' => ['required', 'numeric', 'min:0', 'max:9999999999.99'],
             'cheque_no' => ['nullable', 'string', 'max:80'],
             'reason' => ['nullable', 'string', 'max:255'],
             'is_paid' => ['nullable', 'boolean'],
