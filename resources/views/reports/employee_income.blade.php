@@ -102,7 +102,8 @@
 
 @if(!empty($labels))
   <script>
-document.addEventListener('DOMContentLoaded', function () {
+document.addEventListener('DOMContentLoaded', async function () {
+    const Chart = await window.loadChart();
     (function () {
       const ctx = document.getElementById('employeeIncomeChart');
       if (!ctx) return;

@@ -10,15 +10,41 @@ import Alpine from 'alpinejs';
 window.Alpine = Alpine;
 Alpine.start();
 
-// Chart.js (bundled instead of CDN)
-import Chart from 'chart.js/auto';
-window.Chart = Chart;
+// Chart.js is loaded on demand (only on pages that render charts) so it stays
+// out of the main bundle. Usage: const Chart = await window.loadChart();
+window.loadChart = () => (window.__chartPromise ??= import('chart.js/auto').then((m) => m.default));
 
 // AdminLTE
 import 'admin-lte/dist/js/adminlte.js';
 
 // FontAwesome icons
 import '@fortawesome/fontawesome-free/js/all.min.js';
+
+/**
+ * Submit/loading state: on form submit, disable the submit button (deferred so
+ * the submission still goes through) to prevent accidental double-submits and
+ * give visual feedback. Opt out with data-no-loading on the <form>.
+ */
+document.addEventListener('submit', (e) => {
+    const form = e.target;
+    if (!(form instanceof HTMLFormElement) || form.dataset.noLoading !== undefined) {
+        return;
+    }
+
+    const btn = form.querySelector('button[type="submit"], input[type="submit"]');
+    if (!btn || btn.disabled) {
+        return;
+    }
+
+    setTimeout(() => {
+        btn.disabled = true;
+        btn.classList.add('disabled');
+        if (btn.tagName === 'BUTTON' && !btn.dataset.busyDone) {
+            btn.dataset.busyDone = '1';
+            btn.insertAdjacentHTML('afterbegin', '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>');
+        }
+    }, 0);
+});
 
 /**
  * Theme handling:

@@ -38,13 +38,34 @@
   }
 </style>
 
-<div class="mb-3">
-    <h2 class="h4 mb-1">{{ $greeting }}, {{ $displayName }} 👋</h2>
-    <div class="text-muted">Here’s a quick overview of this month’s performance.</div>
+@php
+    $mtdLabel = $isCurrentMonth ? 'Month-to-date' : $monthLabel;
+@endphp
+
+<div class="mb-3 d-flex flex-wrap align-items-end justify-content-between gap-2">
+    <div>
+        <h2 class="h4 mb-1">{{ $greeting }}, {{ $displayName }} 👋</h2>
+        <div class="text-muted">
+            Overview for <strong>{{ $monthLabel }}</strong>{{ $isCurrentMonth ? ' (current month)' : '' }}.
+        </div>
+    </div>
+
+    <form method="GET" action="{{ route('dashboard') }}" class="d-flex align-items-end gap-2">
+        <div>
+            <label for="dashboard-month" class="form-label small mb-1">Month</label>
+            <input type="month" id="dashboard-month" name="month" value="{{ $month }}"
+                   max="{{ now()->format('Y-m') }}" class="form-control form-control-sm">
+        </div>
+        <button type="submit" class="btn btn-sm btn-primary">Go</button>
+        @unless($isCurrentMonth)
+            <a href="{{ route('dashboard') }}" class="btn btn-sm btn-outline-secondary">This month</a>
+        @endunless
+    </form>
 </div>
 
 <div class="row">
-    {{-- Today Income --}}
+    {{-- Today Income (only meaningful for the current month) --}}
+    @if($isCurrentMonth)
     <div class="col-12 col-sm-6 col-lg-3">
         <div class="small-box bg-success">
             <div class="inner">
@@ -59,13 +80,14 @@
             </a>
         </div>
     </div>
+    @endif
 
     {{-- MTD Income --}}
     <div class="col-12 col-sm-6 col-lg-3">
         <div class="small-box bg-info">
             <div class="inner">
                 <h3>{{ number_format((float)$mtdIncome, 2) }}</h3>
-                <p>Month-to-date Income</p>
+                <p>{{ $mtdLabel }} Income</p>
             </div>
             <div class="icon">
                 <i class="fas fa-calendar-alt"></i>
@@ -81,7 +103,7 @@
         <div class="small-box bg-warning text-white">
             <div class="inner">
                 <h3 class="text-white">{{ number_format((float)$mtdExpenses, 2) }}</h3>
-                <p class="text-white">Month-to-date Expenses</p>
+                <p class="text-white">{{ $mtdLabel }} Expenses</p>
             </div>
             <div class="icon text-white">
                 <i class="fas fa-receipt"></i>
@@ -97,7 +119,7 @@
         <div class="small-box {{ $mtdProfit >= 0 ? 'bg-primary' : 'bg-danger' }}">
             <div class="inner">
                 <h3>{{ number_format((float)$mtdProfit, 2) }}</h3>
-                <p>Month-to-date Profit</p>
+                <p>{{ $mtdLabel }} Profit</p>
             </div>
             <div class="icon">
                 <i class="fas fa-chart-line"></i>
@@ -114,7 +136,7 @@
     <div class="col-12 col-lg-8">
         <div class="card">
             <div class="card-header">
-                <strong>Income vs Expenses (Current Month)</strong>
+                <strong>Income vs Expenses ({{ $monthLabel }})</strong>
                 <div class="text-muted small">Daily totals</div>
             </div>
             <div class="card-body">
@@ -180,7 +202,7 @@
         <div class="card">
             <div class="card-header">
                 <strong>Income by Method</strong>
-                <div class="text-muted small">Current month totals</div>
+                <div class="text-muted small">{{ $monthLabel }} totals</div>
             </div>
             <div class="card-body">
                 <div class="chart-wrap">
@@ -197,7 +219,8 @@
 
 {{-- Chart.js --}}
 <script>
-document.addEventListener('DOMContentLoaded', function () {
+document.addEventListener('DOMContentLoaded', async function () {
+    const Chart = await window.loadChart();
     const isMobile = window.matchMedia("(max-width: 575.98px)").matches;
 
     const labels = @json($chartLabels);

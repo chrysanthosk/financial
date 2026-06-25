@@ -52,10 +52,13 @@ class ImportController extends Controller
 
         $uuid = (string) Str::uuid();
         $dir = "imports/{$uuid}";
-        $path = $request->file('file')->storeAs(
-            $dir,
-            'upload.'.$request->file('file')->getClientOriginalExtension()
-        );
+
+        // Don't interpolate the client-supplied extension into the stored path;
+        // constrain it to the validated set (mimes already passed above).
+        $ext = strtolower($request->file('file')->getClientOriginalExtension());
+        $ext = in_array($ext, ['xlsx', 'xls', 'csv'], true) ? $ext : 'xlsx';
+
+        $path = $request->file('file')->storeAs($dir, 'upload.'.$ext);
 
         [$headers, $sampleRows] = $this->readHeadersAndSample($path, (bool) $request->boolean('has_header', true));
 
@@ -330,10 +333,22 @@ class ImportController extends Controller
         }
     }
 
+    /**
+     * Load a spreadsheet reading values only (no styles/formatting), which
+     * keeps memory down on large or hostile uploads.
+     */
+    private function loadSpreadsheet(string $abs): \PhpOffice\PhpSpreadsheet\Spreadsheet
+    {
+        $reader = IOFactory::createReaderForFile($abs);
+        $reader->setReadDataOnly(true);
+
+        return $reader->load($abs);
+    }
+
     private function readHeadersAndSample(string $storedPath, bool $hasHeader): array
     {
         $abs = Storage::path($storedPath);
-        $spreadsheet = IOFactory::load($abs);
+        $spreadsheet = $this->loadSpreadsheet($abs);
         $sheet = $spreadsheet->getActiveSheet();
 
         $maxCol = $sheet->getHighestColumn();
@@ -367,7 +382,7 @@ class ImportController extends Controller
     private function readAllRows(string $storedPath, bool $hasHeader): array
     {
         $abs = Storage::path($storedPath);
-        $spreadsheet = IOFactory::load($abs);
+        $spreadsheet = $this->loadSpreadsheet($abs);
         $sheet = $spreadsheet->getActiveSheet();
 
         $maxCol = $sheet->getHighestColumn();

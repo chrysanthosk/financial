@@ -34,8 +34,9 @@
 
         <div class="row">
           <div class="col-md-3 mb-3">
-            <label class="form-label">Date</label>
+            <label class="form-label" for="income_date">Date</label>
             <input
+              id="income_date"
               type="date"
               name="income_date"
               class="form-control @error('income_date') is-invalid @enderror"
@@ -46,9 +47,10 @@
           </div>
 
           <div class="col-md-4 mb-3">
-            <label class="form-label">Source</label>
+            <label class="form-label" for="income_source_id">Source</label>
 
             <select
+              id="income_source_id"
               name="income_source_id"
               class="form-control @error('income_source_id') is-invalid @enderror"
               required
@@ -69,8 +71,9 @@
           </div>
 
           <div class="col-md-3 mb-3">
-            <label class="form-label">Amount</label>
+            <label class="form-label" for="amount">Amount</label>
             <input
+              id="amount"
               type="number"
               name="amount"
               step="0.01"
@@ -83,8 +86,9 @@
           </div>
 
           <div class="col-md-12 mb-3">
-            <label class="form-label">Note (optional)</label>
+            <label class="form-label" for="note">Note (optional)</label>
             <input
+              id="note"
               type="text"
               name="note"
               maxlength="255"

@@ -52,7 +52,8 @@
 </div>
 
 <script>
-document.addEventListener('DOMContentLoaded', function () {
+document.addEventListener('DOMContentLoaded', async function () {
+    const Chart = await window.loadChart();
   const labels = @json($labels);
   const cur = @json($curProfit);
   const prev = @json($prevProfit);

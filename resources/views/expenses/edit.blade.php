@@ -24,15 +24,15 @@
 
         <div class="row">
           <div class="col-md-3 mb-3">
-            <label class="form-label">Date</label>
-            <input type="date" name="expense_date" class="form-control"
+            <label class="form-label" for="expense_date">Date</label>
+            <input id="expense_date" type="date" name="expense_date" class="form-control"
                    value="{{ old('expense_date', $expense->expense_date->format('Y-m-d')) }}" required>
             @error('expense_date') <div class="text-danger small">{{ $message }}</div> @enderror
           </div>
 
           <div class="col-md-5 mb-3">
-            <label class="form-label">Payee / Company</label>
-            <input type="text" name="payee_name" maxlength="120" class="form-control"
+            <label class="form-label" for="payee_name">Payee / Company</label>
+            <input id="payee_name" type="text" name="payee_name" maxlength="120" class="form-control"
                    list="payee-suggestions" autocomplete="off"
                    value="{{ old('payee_name', $expense->payee_name) }}" required>
             <datalist id="payee-suggestions">
@@ -44,8 +44,8 @@
           </div>
 
           <div class="col-md-4 mb-3">
-            <label class="form-label">Category</label>
-            <select name="expense_category_id" class="form-control" required>
+            <label class="form-label" for="expense_category_id">Category</label>
+            <select id="expense_category_id" name="expense_category_id" class="form-control" required>
               @foreach($categories as $c)
                 <option value="{{ $c->id }}"
                   @selected((int)old('expense_category_id', $expense->expense_category_id) === (int)$c->id)>{{ $c->name }}</option>
@@ -55,8 +55,8 @@
           </div>
 
           <div class="col-md-4 mb-3">
-            <label class="form-label">Payment Method</label>
-            <select name="payment_method_id" class="form-control" required>
+            <label class="form-label" for="payment_method_id">Payment Method</label>
+            <select id="payment_method_id" name="payment_method_id" class="form-control" required>
               @foreach($methods as $m)
                 <option value="{{ $m->id }}"
                   @selected((int)old('payment_method_id', $expense->payment_method_id) === (int)$m->id)>{{ $m->name }}</option>
@@ -66,22 +66,22 @@
           </div>
 
           <div class="col-md-3 mb-3">
-            <label class="form-label">Amount</label>
-            <input type="number" name="amount" step="0.01" min="0" class="form-control"
+            <label class="form-label" for="amount">Amount</label>
+            <input id="amount" type="number" name="amount" step="0.01" min="0" class="form-control"
                    value="{{ old('amount', (string)$expense->amount) }}" required>
             @error('amount') <div class="text-danger small">{{ $message }}</div> @enderror
           </div>
 
           <div class="col-md-5 mb-3">
-            <label class="form-label">Cheque No (optional)</label>
-            <input type="text" name="cheque_no" maxlength="80" class="form-control"
+            <label class="form-label" for="cheque_no">Cheque No (optional)</label>
+            <input id="cheque_no" type="text" name="cheque_no" maxlength="80" class="form-control"
                    value="{{ old('cheque_no', $expense->cheque_no) }}">
             @error('cheque_no') <div class="text-danger small">{{ $message }}</div> @enderror
           </div>
 
           <div class="col-md-12 mb-3">
-            <label class="form-label">Reason (optional)</label>
-            <input type="text" name="reason" maxlength="255" class="form-control"
+            <label class="form-label" for="reason">Reason (optional)</label>
+            <input id="reason" type="text" name="reason" maxlength="255" class="form-control"
                    value="{{ old('reason', $expense->reason) }}">
             @error('reason') <div class="text-danger small">{{ $message }}</div> @enderror
           </div>

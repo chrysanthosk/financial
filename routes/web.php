@@ -73,6 +73,7 @@ Route::middleware('auth')->group(function () {
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 
     Route::patch('/profile/password', [ProfileController::class, 'password'])
+        ->middleware('throttle:6,1')
         ->name('profile.password');
 
     Route::post('/profile/email', [EmailChangeController::class, 'requestChange'])
@@ -94,9 +95,11 @@ Route::middleware('auth')->group(function () {
         ->name('profile.2fa.enable');
 
     Route::post('/profile/2fa/confirm', [TwoFactorController::class, 'confirm'])
+        ->middleware('throttle:6,1')
         ->name('profile.2fa.confirm');
 
     Route::post('/profile/2fa/disable', [TwoFactorController::class, 'disable'])
+        ->middleware('throttle:6,1')
         ->name('profile.2fa.disable');
 
     Route::post('/profile/2fa/recovery/regenerate', [TwoFactorController::class, 'regenerateRecoveryCodes'])
@@ -228,7 +231,9 @@ Route::middleware(['auth', 'admin'])
             */
             Route::get('/smtp', [SmtpSettingsController::class, 'edit'])->name('smtp.edit');
             Route::put('/smtp', [SmtpSettingsController::class, 'update'])->name('smtp.update');
-            Route::post('/smtp/test', [SmtpSettingsController::class, 'test'])->name('smtp.test');
+            Route::post('/smtp/test', [SmtpSettingsController::class, 'test'])
+                ->middleware('throttle:6,1')
+                ->name('smtp.test');
 
             /*
             |--------------------------------------------------------------------------
