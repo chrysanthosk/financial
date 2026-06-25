@@ -4,6 +4,7 @@ namespace Tests\Feature\Auth;
 
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use OTPHP\TOTP;
 use Tests\TestCase;
 
 class TwoFactorChallengeTest extends TestCase
@@ -42,7 +43,7 @@ class TwoFactorChallengeTest extends TestCase
     {
         [$user] = $this->userWithTwoFactor();
 
-        $code = \OTPHP\TOTP::create(self::SECRET)->now();
+        $code = TOTP::create(self::SECRET)->now();
 
         $response = $this
             ->withSession(['2fa:user:id' => $user->id])

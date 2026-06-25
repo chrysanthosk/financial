@@ -3,6 +3,7 @@
 namespace Tests\Feature\Admin;
 
 use App\Models\ExpenseCategory;
+use App\Models\IncomeSource;
 use App\Models\PaymentMethod;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -104,8 +105,8 @@ class ImportControllerTest extends TestCase
         Storage::fake('local');
 
         // Income is "wide": each source is a column header.
-        \App\Models\IncomeSource::factory()->create(['name' => 'Cash']);
-        \App\Models\IncomeSource::factory()->create(['name' => 'Visa']);
+        IncomeSource::factory()->create(['name' => 'Cash']);
+        IncomeSource::factory()->create(['name' => 'Visa']);
         $admin = $this->admin();
 
         $csv = "Date,Cash,Visa\n"

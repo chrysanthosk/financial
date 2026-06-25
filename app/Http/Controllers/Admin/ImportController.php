@@ -17,6 +17,7 @@ use Illuminate\Support\Str;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use PhpOffice\PhpSpreadsheet\RichText\RichText;
 use PhpOffice\PhpSpreadsheet\Shared\Date as ExcelDate;
+use PhpOffice\PhpSpreadsheet\Spreadsheet;
 
 class ImportController extends Controller
 {
@@ -337,7 +338,7 @@ class ImportController extends Controller
      * Load a spreadsheet reading values only (no styles/formatting), which
      * keeps memory down on large or hostile uploads.
      */
-    private function loadSpreadsheet(string $abs): \PhpOffice\PhpSpreadsheet\Spreadsheet
+    private function loadSpreadsheet(string $abs): Spreadsheet
     {
         $reader = IOFactory::createReaderForFile($abs);
         $reader->setReadDataOnly(true);

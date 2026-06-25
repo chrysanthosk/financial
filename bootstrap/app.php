@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Middleware\AdminOnly;
 use App\Http\Middleware\EnsureTwoFactorChallenged;
 use App\Http\Middleware\SecurityHeaders;
 use Illuminate\Foundation\Application;
@@ -16,7 +17,7 @@ return Application::configure(basePath: dirname(__DIR__))
 
         // Keep your aliases
         $middleware->alias([
-            'admin' => \App\Http\Middleware\AdminOnly::class,
+            'admin' => AdminOnly::class,
         ]);
 
         // ✅ Add 2FA enforcement to ALL web routes (only triggers if session has 2fa:user:id)
