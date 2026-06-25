@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -48,7 +49,7 @@ class ExpenseTemplate extends Model
     /**
      * Build (but do not persist) an Expense from this template for $date.
      */
-    public function toExpenseAttributes(\Carbon\CarbonInterface $date, ?int $userId = null): array
+    public function toExpenseAttributes(CarbonInterface $date, ?int $userId = null): array
     {
         return [
             'expense_date' => $date->toDateString(),

@@ -9,6 +9,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cookie;
 use Illuminate\Support\Str;
+use OTPHP\TOTP;
 
 class TwoFactorChallengeController extends Controller
 {
@@ -52,7 +53,7 @@ class TwoFactorChallengeController extends Controller
         }
 
         // Must have OTP library
-        if (! class_exists(\OTPHP\TOTP::class)) {
+        if (! class_exists(TOTP::class)) {
             return back()->withErrors(['code' => 'OTP library missing (spomky-labs/otphp).']);
         }
 
@@ -71,7 +72,7 @@ class TwoFactorChallengeController extends Controller
             $issuer = config('app.name', 'Financial');
             $label = $user->email ?: ('user-'.$user->id);
 
-            $totp = \OTPHP\TOTP::create($secret);
+            $totp = TOTP::create($secret);
             $totp->setIssuer($issuer);
             $totp->setLabel($label);
 

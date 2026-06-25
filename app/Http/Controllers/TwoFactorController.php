@@ -10,6 +10,7 @@ use BaconQrCode\Writer;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cookie;
 use Illuminate\Support\Facades\Redirect;
+use OTPHP\TOTP;
 
 class TwoFactorController extends Controller
 {
@@ -85,7 +86,7 @@ class TwoFactorController extends Controller
             return Redirect::route('profile.2fa.show')->with('status', 'Please generate a QR first.');
         }
 
-        if (! class_exists(\OTPHP\TOTP::class)) {
+        if (! class_exists(TOTP::class)) {
             return Redirect::route('profile.2fa.show')
                 ->with('status', 'Missing OTP library. Run: composer require spomky-labs/otphp');
         }
@@ -96,7 +97,7 @@ class TwoFactorController extends Controller
         $issuer = config('app.name', 'Financial');
         $label = $user->email ?: ('user-'.$user->id);
 
-        $totp = \OTPHP\TOTP::create($secret);
+        $totp = TOTP::create($secret);
         $totp->setIssuer($issuer);
         $totp->setLabel($label);
 
