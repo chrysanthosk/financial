@@ -76,6 +76,7 @@ Route::middleware('auth')->group(function () {
         ->name('profile.password');
 
     Route::post('/profile/email', [EmailChangeController::class, 'requestChange'])
+        ->middleware('throttle:5,10')
         ->name('profile.email.request');
 
     Route::get('/profile/email/confirm/{token}', [EmailChangeController::class, 'confirm'])

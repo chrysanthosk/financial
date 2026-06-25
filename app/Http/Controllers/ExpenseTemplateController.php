@@ -42,8 +42,8 @@ class ExpenseTemplateController extends Controller
 
         return view('expenses.recurring.create', [
             'categories' => $categories,
-            'methods'    => $methods,
-            'payees'     => $this->payeeSuggestions(),
+            'methods' => $methods,
+            'payees' => $this->payeeSuggestions(),
         ]);
     }
 
@@ -60,13 +60,13 @@ class ExpenseTemplateController extends Controller
             request: $request,
             userId: $request->user()?->id,
             targetType: 'ExpenseTemplate',
-            targetId: (string)$template->id,
+            targetId: (string) $template->id,
             meta: [
-                'name'         => $template->name,
-                'payee_name'   => $template->payee_name,
-                'amount'       => (float)$template->amount,
-                'auto_create'  => (bool)$template->auto_create,
-                'day_of_month' => (int)$template->day_of_month,
+                'name' => $template->name,
+                'payee_name' => $template->payee_name,
+                'amount' => (float) $template->amount,
+                'auto_create' => (bool) $template->auto_create,
+                'day_of_month' => (int) $template->day_of_month,
             ]
         );
 
@@ -83,10 +83,10 @@ class ExpenseTemplateController extends Controller
             ->orderBy('sort_order')->orderBy('name')->get();
 
         return view('expenses.recurring.edit', [
-            'template'   => $template->load(['category', 'method']),
+            'template' => $template->load(['category', 'method']),
             'categories' => $categories,
-            'methods'    => $methods,
-            'payees'     => $this->payeeSuggestions(),
+            'methods' => $methods,
+            'payees' => $this->payeeSuggestions(),
         ]);
     }
 
@@ -131,12 +131,12 @@ class ExpenseTemplateController extends Controller
             request: $request,
             userId: $request->user()?->id,
             targetType: 'ExpenseTemplate',
-            targetId: (string)$template->id,
+            targetId: (string) $template->id,
             meta: [
-                'name'         => $template->name,
-                'auto_create'  => (bool)$template->auto_create,
-                'day_of_month' => (int)$template->day_of_month,
-                'is_active'    => (bool)$template->is_active,
+                'name' => $template->name,
+                'auto_create' => (bool) $template->auto_create,
+                'day_of_month' => (int) $template->day_of_month,
+                'is_active' => (bool) $template->is_active,
             ]
         );
 
@@ -146,7 +146,7 @@ class ExpenseTemplateController extends Controller
 
     public function destroy(Request $request, ExpenseTemplate $template)
     {
-        $id   = (string)$template->id;
+        $id = (string) $template->id;
         $meta = ['name' => $template->name, 'payee_name' => $template->payee_name];
 
         $template->delete();
@@ -170,7 +170,7 @@ class ExpenseTemplateController extends Controller
      */
     public function insert(Request $request, ExpenseTemplate $template)
     {
-        if (!$template->is_active) {
+        if (! $template->is_active) {
             return back()->withErrors(['template' => 'This template is inactive.']);
         }
 
@@ -182,12 +182,12 @@ class ExpenseTemplateController extends Controller
             request: $request,
             userId: $request->user()?->id,
             targetType: 'Expense',
-            targetId: (string)$expense->id,
+            targetId: (string) $expense->id,
             meta: [
                 'template_id' => $template->id,
-                'amount'      => (float)$expense->amount,
-                'payee_name'  => $expense->payee_name,
-                'source'      => 'manual',
+                'amount' => (float) $expense->amount,
+                'payee_name' => $expense->payee_name,
+                'source' => 'manual',
             ]
         );
 
@@ -198,25 +198,25 @@ class ExpenseTemplateController extends Controller
     private function validatePayload(Request $request): array
     {
         $validCategoryIds = ExpenseCategory::where('is_active', true)->pluck('id')->all();
-        $validMethodIds   = PaymentMethod::where('is_active', true)->pluck('id')->all();
+        $validMethodIds = PaymentMethod::where('is_active', true)->pluck('id')->all();
 
         $data = $request->validate([
-            'name'                => ['required', 'string', 'max:120'],
-            'payee_name'          => ['required', 'string', 'max:120'],
+            'name' => ['required', 'string', 'max:120'],
+            'payee_name' => ['required', 'string', 'max:120'],
             'expense_category_id' => ['required', Rule::in($validCategoryIds)],
-            'payment_method_id'   => ['required', Rule::in($validMethodIds)],
-            'amount'              => ['required', 'numeric', 'min:0'],
-            'cheque_no'           => ['nullable', 'string', 'max:80'],
-            'reason'              => ['nullable', 'string', 'max:255'],
-            'is_paid_default'     => ['nullable', 'boolean'],
-            'auto_create'         => ['nullable', 'boolean'],
-            'day_of_month'        => ['required', 'integer', 'min:1', 'max:28'],
-            'is_active'           => ['nullable', 'boolean'],
+            'payment_method_id' => ['required', Rule::in($validMethodIds)],
+            'amount' => ['required', 'numeric', 'min:0'],
+            'cheque_no' => ['nullable', 'string', 'max:80'],
+            'reason' => ['nullable', 'string', 'max:255'],
+            'is_paid_default' => ['nullable', 'boolean'],
+            'auto_create' => ['nullable', 'boolean'],
+            'day_of_month' => ['required', 'integer', 'min:1', 'max:28'],
+            'is_active' => ['nullable', 'boolean'],
         ]);
 
         $data['is_paid_default'] = $request->boolean('is_paid_default');
-        $data['auto_create']     = $request->boolean('auto_create');
-        $data['is_active']       = $request->boolean('is_active', true);
+        $data['auto_create'] = $request->boolean('auto_create');
+        $data['is_active'] = $request->boolean('is_active', true);
 
         return $data;
     }

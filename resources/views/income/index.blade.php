@@ -58,6 +58,11 @@
           </thead>
 
           <tbody>
+            @if((float)$monthTotal <= 0)
+              <tr>
+                <td colspan="{{ count($sources) + 2 }}" class="text-center py-4 text-muted">No income found for this month.</td>
+              </tr>
+            @else
             @foreach($days as $d)
               <tr>
                 <td class="text-nowrap">{{ $d }}</td>
@@ -105,6 +110,7 @@
                 </td>
               </tr>
             @endforeach
+            @endif
           </tbody>
 
           <tfoot>

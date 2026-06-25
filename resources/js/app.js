@@ -10,6 +10,10 @@ import Alpine from 'alpinejs';
 window.Alpine = Alpine;
 Alpine.start();
 
+// Chart.js (bundled instead of CDN)
+import Chart from 'chart.js/auto';
+window.Chart = Chart;
+
 // AdminLTE
 import 'admin-lte/dist/js/adminlte.js';
 

@@ -24,7 +24,7 @@ class IncomeSourceSeeder extends Seeder
                 ['name' => $row['name']],
                 [
                     'sort_order' => $row['sort_order'],
-                    'is_active'  => (bool)$row['is_active'],
+                    'is_active' => (bool) $row['is_active'],
                     'updated_at' => now(),
                     'created_at' => now(),
                 ]

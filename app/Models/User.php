@@ -24,6 +24,7 @@ class User extends Authenticatable
         'two_factor_secret',
         'two_factor_recovery_codes',
         'two_factor_confirmed_at',
+        'two_factor_last_used_counter',
         'pending_email',
         'pending_email_token',
         'pending_email_requested_at',
@@ -136,5 +137,14 @@ class User extends Authenticatable
     public function trustedDevices(): HasMany
     {
         return $this->hasMany(TwoFactorTrustedDevice::class);
+    }
+
+    /**
+     * Revoke all server-side trusted-device tokens for this user. The browser
+     * cookie becomes useless once its row is gone; callers may also expire it.
+     */
+    public function revokeTrustedDevices(): void
+    {
+        $this->trustedDevices()->delete();
     }
 }

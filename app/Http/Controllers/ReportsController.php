@@ -24,10 +24,10 @@ class ReportsController extends Controller
 
         $range = $this->reports->resolveDateRange($year, $from, $to);
 
-        // Quick summary for selected range (DB-agnostic)
-        $incomeTotal = (float) Income::whereBetween('income_date', [$range['from'], $range['to']])->sum('amount');
-        $expenseTotal = (float) Expense::whereBetween('expense_date', [$range['from'], $range['to']])->sum('amount');
-        $profit = $incomeTotal - $expenseTotal;
+        // Quick summary for selected range (DB SUM is exact for decimals)
+        $incomeTotal = round((float) Income::whereBetween('income_date', [$range['from'], $range['to']])->sum('amount'), 2);
+        $expenseTotal = round((float) Expense::whereBetween('expense_date', [$range['from'], $range['to']])->sum('amount'), 2);
+        $profit = round($incomeTotal - $expenseTotal, 2);
 
         return view('reports.index', [
             'year' => $year,
@@ -58,7 +58,7 @@ class ReportsController extends Controller
 
         $profitByMonth = [];
         for ($m = 1; $m <= 12; $m++) {
-            $profitByMonth[$m] = $incomeByMonth[$m] - $expenseByMonth[$m];
+            $profitByMonth[$m] = round($incomeByMonth[$m] - $expenseByMonth[$m], 2);
         }
 
         $labels = $this->reports->monthLabels($year);
@@ -69,9 +69,9 @@ class ReportsController extends Controller
             'incomeByMonth' => array_values($incomeByMonth),
             'expenseByMonth' => array_values($expenseByMonth),
             'profitByMonth' => array_values($profitByMonth),
-            'totalIncome' => array_sum($incomeByMonth),
-            'totalExpenses' => array_sum($expenseByMonth),
-            'totalProfit' => array_sum($profitByMonth),
+            'totalIncome' => round(array_sum($incomeByMonth), 2),
+            'totalExpenses' => round(array_sum($expenseByMonth), 2),
+            'totalProfit' => round(array_sum($profitByMonth), 2),
         ]);
     }
 
@@ -85,23 +85,9 @@ class ReportsController extends Controller
             ->whereBetween('income_date', [$from, $to])
             ->get(['income_date', 'income_source_id', 'amount']);
 
-        $total = 0.0;
-        $bySource = []; // name => total
-        $byMonth = array_fill(1, 12, 0.0);
-
-        foreach ($rows as $r) {
-            $amt = (float) $r->amount;
-            $total += $amt;
-
-            $name = $r->source?->name ?? 'Unknown';
-            $bySource[$name] = ($bySource[$name] ?? 0.0) + $amt;
-
-            $m = Carbon::parse($r->income_date)->month;
-            $byMonth[$m] += $amt;
-        }
-
-        // Sort breakdown descending
-        arsort($bySource);
+        $bySource = $this->reports->sumByLabel($rows, fn ($r) => $r->source?->name ?? 'Unknown');
+        $byMonth = $this->reports->bucketByMonth($rows, 'income_date');
+        $total = round(array_sum($bySource), 2);
 
         $labels = $this->reports->monthLabels($year);
 
@@ -124,27 +110,10 @@ class ReportsController extends Controller
             ->whereBetween('expense_date', [$from, $to])
             ->get(['expense_date', 'expense_category_id', 'payment_method_id', 'amount', 'payee_name']);
 
-        $total = 0.0;
-        $byMethod = [];   // method => total
-        $byCategory = []; // category => total
-        $byMonth = array_fill(1, 12, 0.0);
-
-        foreach ($rows as $r) {
-            $amt = (float) $r->amount;
-            $total += $amt;
-
-            $method = $r->method?->name ?? 'Unknown';
-            $cat = $r->category?->name ?? 'Unknown';
-
-            $byMethod[$method] = ($byMethod[$method] ?? 0.0) + $amt;
-            $byCategory[$cat] = ($byCategory[$cat] ?? 0.0) + $amt;
-
-            $m = Carbon::parse($r->expense_date)->month;
-            $byMonth[$m] += $amt;
-        }
-
-        arsort($byMethod);
-        arsort($byCategory);
+        $byMethod = $this->reports->sumByLabel($rows, fn ($r) => $r->method?->name ?? 'Unknown');
+        $byCategory = $this->reports->sumByLabel($rows, fn ($r) => $r->category?->name ?? 'Unknown');
+        $byMonth = $this->reports->bucketByMonth($rows, 'expense_date');
+        $total = round(array_sum($byCategory), 2);
 
         $labels = $this->reports->monthLabels($year);
 
@@ -252,13 +221,13 @@ class ReportsController extends Controller
             if (! isset($map[$payee])) {
                 $map[$payee] = [
                     'months' => [],
-                    'total' => 0.0,
+                    'total_cents' => 0,
                     'count' => 0,
                 ];
             }
 
             $map[$payee]['months'][$monthKey] = true;
-            $map[$payee]['total'] += (float) $r->amount;
+            $map[$payee]['total_cents'] += $this->reports->toCents($r->amount);
             $map[$payee]['count']++;
         }
 
@@ -270,7 +239,7 @@ class ReportsController extends Controller
                     'payee' => $payee,
                     'distinct_months' => $distinctMonths,
                     'tx_count' => $data['count'],
-                    'total' => $data['total'],
+                    'total' => $this->reports->fromCents($data['total_cents']),
                 ];
             }
         }
@@ -296,22 +265,24 @@ class ReportsController extends Controller
             ->whereBetween('expense_date', [$from, $to])
             ->get(['expense_date', 'expense_category_id', 'amount']);
 
-        // category => [1..12 => total]
-        $series = [];
+        // category => [1..12 => cents]
+        $seriesCents = [];
 
         foreach ($rows as $r) {
             $cat = $r->category?->name ?? 'Unknown';
             $m = Carbon::parse($r->expense_date)->month;
-            if (! isset($series[$cat])) {
-                $series[$cat] = array_fill(1, 12, 0.0);
+            if (! isset($seriesCents[$cat])) {
+                $seriesCents[$cat] = array_fill(1, 12, 0);
             }
-            $series[$cat][$m] += (float) $r->amount;
+            $seriesCents[$cat][$m] += $this->reports->toCents($r->amount);
         }
 
-        // Keep top N categories by total
+        // Convert to float and compute per-category totals
+        $series = [];
         $totals = [];
-        foreach ($series as $cat => $months) {
-            $totals[$cat] = array_sum($months);
+        foreach ($seriesCents as $cat => $months) {
+            $series[$cat] = array_map(fn (int $c) => $this->reports->fromCents($c), $months);
+            $totals[$cat] = round(array_sum($series[$cat]), 2);
         }
         arsort($totals);
 
@@ -347,24 +318,24 @@ class ReportsController extends Controller
 
         $range = $this->reports->resolveDateRange($year, $request->query('from'), $request->query('to'));
 
-        // Fetch expenses for range (DB-agnostic) and aggregate in PHP
+        // Fetch expenses for range (DB-agnostic) and aggregate in PHP (exact cents)
         $rows = Expense::whereBetween('expense_date', [$range['from'], $range['to']])
             ->get(['expense_date', 'payee_name', 'amount']);
 
-        $totals = [];   // payee => total
-        $counts = [];   // payee => tx count
-
-        foreach ($rows as $r) {
+        $payeeOf = function ($r) {
             $payee = trim((string) $r->payee_name);
-            if ($payee === '') {
-                $payee = 'Unknown';
-            }
 
-            $totals[$payee] = ($totals[$payee] ?? 0.0) + (float) $r->amount;
+            return $payee === '' ? 'Unknown' : $payee;
+        };
+
+        $totals = $this->reports->sumByLabel($rows, $payeeOf); // payee => total, sorted desc
+
+        $counts = []; // payee => tx count
+        foreach ($rows as $r) {
+            $payee = $payeeOf($r);
             $counts[$payee] = ($counts[$payee] ?? 0) + 1;
         }
 
-        arsort($totals);
         $topPayees = array_slice(array_keys($totals), 0, $limit);
 
         $table = [];
@@ -400,18 +371,8 @@ class ReportsController extends Controller
             ->whereBetween('expense_date', [$range['from'], $range['to']])
             ->get(['expense_category_id', 'amount']);
 
-        $totals = []; // category => total
-        $grand = 0.0;
-
-        foreach ($rows as $r) {
-            $cat = $r->category?->name ?? 'Unknown';
-            $amt = (float) $r->amount;
-
-            $grand += $amt;
-            $totals[$cat] = ($totals[$cat] ?? 0.0) + $amt;
-        }
-
-        arsort($totals);
+        $totals = $this->reports->sumByLabel($rows, fn ($r) => $r->category?->name ?? 'Unknown');
+        $grand = round(array_sum($totals), 2);
 
         // Option: top N + "Other"
         $topN = (int) ($request->query('top') ?: 8);
@@ -466,33 +427,27 @@ class ReportsController extends Controller
             ->whereBetween('income_date', [$from, $to])
             ->get(['income_date', 'income_source_id', 'amount']);
 
-        // sourceName => [1..12 => total]
+        // sourceName => [1..12 => cents]
         $bySourceMonth = [];
-        $sourceTotals = [];
+        $sourceTotals = []; // sourceName => cents
+        $monthTotals = array_fill(1, 12, 0); // 1..12 => cents
 
         foreach ($rows as $r) {
             $name = $r->source?->name ?? 'Unknown';
             $m = Carbon::parse($r->income_date)->month;
-            $amt = (float) $r->amount;
+            $cents = $this->reports->toCents($r->amount);
 
             if (! isset($bySourceMonth[$name])) {
-                $bySourceMonth[$name] = array_fill(1, 12, 0.0);
+                $bySourceMonth[$name] = array_fill(1, 12, 0);
             }
-            $bySourceMonth[$name][$m] += $amt;
-
-            $sourceTotals[$name] = ($sourceTotals[$name] ?? 0.0) + $amt;
+            $bySourceMonth[$name][$m] += $cents;
+            $sourceTotals[$name] = ($sourceTotals[$name] ?? 0) + $cents;
+            $monthTotals[$m] += $cents;
         }
 
         // Choose top N sources by total, rest goes to Other
         arsort($sourceTotals);
         $topSources = array_slice(array_keys($sourceTotals), 0, $topN);
-
-        // Build month totals
-        $monthTotals = array_fill(1, 12, 0.0);
-        foreach ($rows as $r) {
-            $m = Carbon::parse($r->income_date)->month;
-            $monthTotals[$m] += (float) $r->amount;
-        }
 
         // Build datasets as % share per month
         $labels = $this->reports->monthLabels($year);
@@ -503,9 +458,9 @@ class ReportsController extends Controller
         foreach ($topSources as $s) {
             $data = [];
             for ($m = 1; $m <= 12; $m++) {
-                $den = (float) $monthTotals[$m];
-                $num = (float) ($bySourceMonth[$s][$m] ?? 0.0);
-                $data[] = $den > 0 ? ($num / $den) * 100.0 : 0.0;
+                $den = $monthTotals[$m];
+                $num = $bySourceMonth[$s][$m] ?? 0;
+                $data[] = $den > 0 ? round($num / $den * 100, 2) : 0.0;
             }
             $datasets[] = ['label' => $s, 'data' => $data];
         }
@@ -513,13 +468,13 @@ class ReportsController extends Controller
         // Other (everything not in topSources)
         $otherData = [];
         for ($m = 1; $m <= 12; $m++) {
-            $den = (float) $monthTotals[$m];
-            $topSum = 0.0;
+            $den = $monthTotals[$m];
+            $topSum = 0;
             foreach ($topSources as $s) {
-                $topSum += (float) ($bySourceMonth[$s][$m] ?? 0.0);
+                $topSum += $bySourceMonth[$s][$m] ?? 0;
             }
-            $other = max(0.0, $den - $topSum);
-            $otherData[] = $den > 0 ? ($other / $den) * 100.0 : 0.0;
+            $other = max(0, $den - $topSum);
+            $otherData[] = $den > 0 ? round($other / $den * 100, 2) : 0.0;
         }
         if (array_sum($otherData) > 0) {
             $datasets[] = ['label' => 'Other', 'data' => $otherData];
@@ -528,11 +483,11 @@ class ReportsController extends Controller
         // Table totals (topSources + other)
         $table = [];
         $grand = array_sum($sourceTotals);
-        foreach ($sourceTotals as $name => $total) {
+        foreach ($sourceTotals as $name => $totalCents) {
             $table[] = [
                 'source' => $name,
-                'total' => (float) $total,
-                'percent' => $grand > 0 ? ((float) $total / $grand) * 100.0 : 0.0,
+                'total' => $this->reports->fromCents($totalCents),
+                'percent' => $grand > 0 ? round($totalCents / $grand * 100, 2) : 0.0,
             ];
         }
 
@@ -541,7 +496,7 @@ class ReportsController extends Controller
             'topN' => $topN,
             'labels' => $labels,
             'datasets' => $datasets,
-            'monthTotals' => array_values($monthTotals),
+            'monthTotals' => array_map(fn (int $c) => $this->reports->fromCents($c), array_values($monthTotals)),
             'table' => $table,
         ]);
     }
@@ -642,8 +597,8 @@ class ReportsController extends Controller
             'labels' => $labels,
             'incomeYear' => array_values($incomeByMonthYear),
             'incomePrev' => array_values($incomeByMonthPrev),
-            'totalYear' => array_sum($incomeByMonthYear),
-            'totalPrev' => array_sum($incomeByMonthPrev),
+            'totalYear' => round(array_sum($incomeByMonthYear), 2),
+            'totalPrev' => round(array_sum($incomeByMonthPrev), 2),
         ]);
     }
 }

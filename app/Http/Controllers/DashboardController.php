@@ -2,8 +2,8 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Income;
 use App\Models\Expense;
+use App\Models\Income;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 
@@ -22,7 +22,7 @@ class DashboardController extends Controller
         };
 
         // Display name (prefer first/last)
-        $displayName = trim(($user->first_name ?? '') . ' ' . ($user->last_name ?? ''));
+        $displayName = trim(($user->first_name ?? '').' '.($user->last_name ?? ''));
         if ($displayName === '') {
             $displayName = $user->name ?: ($user->email ?: 'User');
         }
@@ -33,16 +33,16 @@ class DashboardController extends Controller
         $endOfMonth = now()->copy()->endOfMonth()->toDateString();
         $daysInMonth = (int) now()->daysInMonth;
 
-        // Totals (DB-agnostic)
-        $todayIncome = (float) Income::whereDate('income_date', $today)->sum('amount');
+        // Totals (DB SUM is exact for decimals)
+        $todayIncome = round((float) Income::whereDate('income_date', $today)->sum('amount'), 2);
 
-        $mtdIncome = (float) Income::whereBetween('income_date', [$startOfMonth, $endOfMonth])
-            ->sum('amount');
+        $mtdIncome = round((float) Income::whereBetween('income_date', [$startOfMonth, $endOfMonth])
+            ->sum('amount'), 2);
 
-        $mtdExpenses = (float) Expense::whereBetween('expense_date', [$startOfMonth, $endOfMonth])
-            ->sum('amount');
+        $mtdExpenses = round((float) Expense::whereBetween('expense_date', [$startOfMonth, $endOfMonth])
+            ->sum('amount'), 2);
 
-        $mtdProfit = $mtdIncome - $mtdExpenses;
+        $mtdProfit = round($mtdIncome - $mtdExpenses, 2);
 
         // -------------------------
         // Unpaid expenses (latest)

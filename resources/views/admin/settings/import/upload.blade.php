@@ -17,7 +17,7 @@
 
                 <div class="mb-3">
                     <label for="file" class="form-label"><strong>Excel/CSV File</strong></label>
-                    <input type="file" class="form-control" id="file" name="file" required>
+                    <input type="file" class="form-control" id="file" name="file" accept=".xlsx,.xls,.csv" required>
                     <div class="form-text">Supported: .xlsx, .xls, .csv</div>
                 </div>
 

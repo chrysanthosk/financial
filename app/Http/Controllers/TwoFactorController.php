@@ -8,6 +8,7 @@ use BaconQrCode\Renderer\ImageRenderer;
 use BaconQrCode\Renderer\RendererStyle\RendererStyle;
 use BaconQrCode\Writer;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cookie;
 use Illuminate\Support\Facades\Redirect;
 
 class TwoFactorController extends Controller
@@ -151,7 +152,13 @@ class TwoFactorController extends Controller
         $user->two_factor_secret = null;
         $user->two_factor_recovery_codes = null;
         $user->two_factor_confirmed_at = null;
+        $user->two_factor_last_used_counter = null;
         $user->save();
+
+        // Revoke any "remember this device" tokens so a captured cookie can't
+        // bypass 2FA after it has been turned off.
+        $user->revokeTrustedDevices();
+        Cookie::queue(Cookie::forget(config('twofactor.cookie.name', 'tfa_trusted_device')));
 
         Audit::log(
             action: 'security.2fa_disabled',

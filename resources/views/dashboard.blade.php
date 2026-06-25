@@ -196,8 +196,8 @@
 </div>
 
 {{-- Chart.js --}}
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
+document.addEventListener('DOMContentLoaded', function () {
     const isMobile = window.matchMedia("(max-width: 575.98px)").matches;
 
     const labels = @json($chartLabels);
@@ -251,5 +251,6 @@
             plugins: { legend: { position: 'bottom' } }
         }
     });
+});
 </script>
 @endsection

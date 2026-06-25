@@ -56,8 +56,8 @@
 
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
+document.addEventListener('DOMContentLoaded', function () {
   const labels = @json($labels);
   const income = @json($incomeByMonth);
   const expenses = @json($expenseByMonth);
@@ -80,5 +80,6 @@
       scales: { y: { beginAtZero: true } }
     }
   });
+});
 </script>
 @endsection

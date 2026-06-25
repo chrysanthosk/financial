@@ -77,10 +77,30 @@ class TwoFactorChallengeController extends Controller
 
             $now = time();
 
-            $valid =
-                $totp->verify($code, $now) ||
-                $totp->verify($code, $now - 30) ||
-                $totp->verify($code, $now + 30);
+            // Allow ±1 step for clock skew, but remember which step matched so a
+            // used code cannot be replayed within its validity window.
+            $matchedAt = null;
+            foreach ([$now, $now - 30, $now + 30] as $ts) {
+                if ($totp->verify($code, $ts)) {
+                    $matchedAt = $ts;
+                    break;
+                }
+            }
+
+            $valid = $matchedAt !== null;
+
+            if ($valid) {
+                $counter = intdiv($matchedAt, 30);
+
+                if ($user->two_factor_last_used_counter !== null
+                    && $counter <= (int) $user->two_factor_last_used_counter) {
+                    // Code (or an earlier one) already consumed — reject replay.
+                    $valid = false;
+                } else {
+                    $user->two_factor_last_used_counter = $counter;
+                    $user->save();
+                }
+            }
         } else {
             // Recovery-code path: single-use, consumed on success.
             $valid = $user->useRecoveryCode($code);

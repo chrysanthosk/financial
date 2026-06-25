@@ -69,8 +69,8 @@
 
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
+document.addEventListener('DOMContentLoaded', function () {
   const labels = @json($labels);
   const datasets = @json($datasets);
 
@@ -97,5 +97,6 @@
       }
     }
   });
+});
 </script>
 @endsection

@@ -9,12 +9,12 @@ return new class extends Migration
     /**
      * Run the migrations.
      */
-   public function up(): void
-   {
-       Schema::table('incomes', function (Blueprint $table) {
-           $table->unique(['income_date', 'income_source_id'], 'incomes_date_source_unique');
-       });
-   }
+    public function up(): void
+    {
+        Schema::table('incomes', function (Blueprint $table) {
+            $table->unique(['income_date', 'income_source_id'], 'incomes_date_source_unique');
+        });
+    }
 
     /**
      * Reverse the migrations.

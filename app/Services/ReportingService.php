@@ -10,9 +10,28 @@ use Illuminate\Support\Carbon;
  * Shared building blocks for the reporting pages. Centralizes the year-range,
  * month-label and month-bucketing logic that was previously duplicated across
  * almost every method of ReportsController.
+ *
+ * Money is aggregated in integer cents to avoid binary-float rounding drift,
+ * then converted back to 2-decimal floats for the views.
  */
 class ReportingService
 {
+    /**
+     * Convert a stored decimal amount to integer cents.
+     */
+    public function toCents(mixed $amount): int
+    {
+        return (int) round(((float) $amount) * 100);
+    }
+
+    /**
+     * Convert integer cents back to a 2-decimal float.
+     */
+    public function fromCents(int $cents): float
+    {
+        return round($cents / 100, 2);
+    }
+
     /**
      * Short month labels (Jan..Dec) for a given year.
      *
@@ -43,20 +62,43 @@ class ReportingService
 
     /**
      * Bucket a row collection into [1..12 => float] by the month of $dateField.
+     * Accumulates in integer cents for exact totals.
      *
      * @param  iterable<object>  $rows
      * @return array<int, float>
      */
     public function bucketByMonth(iterable $rows, string $dateField, string $amountField = 'amount'): array
     {
-        $byMonth = array_fill(1, 12, 0.0);
+        $cents = array_fill(1, 12, 0);
 
         foreach ($rows as $r) {
             $m = Carbon::parse($r->{$dateField})->month;
-            $byMonth[$m] += (float) $r->{$amountField};
+            $cents[$m] += $this->toCents($r->{$amountField});
         }
 
-        return $byMonth;
+        return array_map(fn (int $c) => $this->fromCents($c), $cents);
+    }
+
+    /**
+     * Aggregate rows into [label => float total], sorted by total descending.
+     * Accumulates in integer cents for exact totals.
+     *
+     * @param  iterable<object>  $rows
+     * @param  callable(object): string  $labelResolver
+     * @return array<string, float>
+     */
+    public function sumByLabel(iterable $rows, callable $labelResolver, string $amountField = 'amount'): array
+    {
+        $cents = [];
+
+        foreach ($rows as $r) {
+            $label = $labelResolver($r);
+            $cents[$label] = ($cents[$label] ?? 0) + $this->toCents($r->{$amountField});
+        }
+
+        arsort($cents);
+
+        return array_map(fn (int $c) => $this->fromCents($c), $cents);
     }
 
     /**
@@ -66,8 +108,8 @@ class ReportingService
      */
     public function resolveDateRange(int $year, ?string $from, ?string $to): array
     {
-        $fallbackFrom = Carbon::create($year, 1, 1)->startOfDay()->toDateString();
-        $fallbackTo = Carbon::create($year, 12, 31)->endOfDay()->toDateString();
+        $fallbackFrom = Carbon::create($year, 1, 1)->toDateString();
+        $fallbackTo = Carbon::create($year, 12, 31)->toDateString();
 
         $start = ($from && preg_match('/^\d{4}-\d{2}-\d{2}$/', $from)) ? $from : $fallbackFrom;
         $end = ($to && preg_match('/^\d{4}-\d{2}-\d{2}$/', $to)) ? $to : $fallbackTo;
@@ -80,7 +122,8 @@ class ReportingService
     }
 
     /**
-     * Income / expense / profit totals for a full year.
+     * Income / expense / profit totals for a full year. DB SUM is exact for
+     * decimals; results are rounded to guard the final subtraction.
      *
      * @return array{income: float, expenses: float, profit: float}
      */
@@ -88,13 +131,13 @@ class ReportingService
     {
         ['from' => $from, 'to' => $to] = $this->yearRange($year);
 
-        $income = (float) Income::whereBetween('income_date', [$from, $to])->sum('amount');
-        $expenses = (float) Expense::whereBetween('expense_date', [$from, $to])->sum('amount');
+        $income = round((float) Income::whereBetween('income_date', [$from, $to])->sum('amount'), 2);
+        $expenses = round((float) Expense::whereBetween('expense_date', [$from, $to])->sum('amount'), 2);
 
         return [
             'income' => $income,
             'expenses' => $expenses,
-            'profit' => $income - $expenses,
+            'profit' => round($income - $expenses, 2),
         ];
     }
 
@@ -118,7 +161,7 @@ class ReportingService
 
         $profit = [];
         for ($m = 1; $m <= 12; $m++) {
-            $profit[$m] = $incomeByMonth[$m] - $expenseByMonth[$m];
+            $profit[$m] = round($incomeByMonth[$m] - $expenseByMonth[$m], 2);
         }
 
         return $profit;

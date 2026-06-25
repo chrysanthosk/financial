@@ -36,9 +36,10 @@ class SystemSetting extends Model
     public static function safeCurrent(): ?self
     {
         try {
-            if (!Schema::hasTable('system_settings')) {
+            if (! Schema::hasTable('system_settings')) {
                 return null;
             }
+
             return static::current();
         } catch (\Throwable $e) {
             return null;

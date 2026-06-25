@@ -2,8 +2,8 @@
 
 namespace App\Listeners;
 
-use Illuminate\Auth\Events\Logout;
 use App\Support\Audit;
+use Illuminate\Auth\Events\Logout;
 
 class AuditAuthLogout
 {
@@ -15,7 +15,7 @@ class AuditAuthLogout
             request: request(),
             userId: $event->user?->id,
             targetType: 'User',
-            targetId: (string)($event->user?->id),
+            targetId: (string) ($event->user?->id),
             meta: ['guard' => $event->guard]
         );
     }

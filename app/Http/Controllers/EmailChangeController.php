@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Mail\ConfirmNewEmail;
 use App\Mail\EmailChangeRequestedNotice;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
@@ -16,7 +17,7 @@ class EmailChangeController extends Controller
 
         $validated = $request->validate([
             'current_password' => ['required', 'current_password'],
-            'new_email' => ['required','email','max:255','unique:users,email'],
+            'new_email' => ['required', 'email', 'max:255', 'unique:users,email'],
         ]);
 
         $token = Str::random(64);
@@ -39,13 +40,13 @@ class EmailChangeController extends Controller
     {
         $user = $request->user();
 
-        if (!$user->pending_email || !$user->pending_email_token) {
+        if (! $user->pending_email || ! $user->pending_email_token) {
             return redirect()->route('profile.edit')->with('status', 'No pending email change found.');
         }
 
         $hash = hash('sha256', $token);
 
-        if (!hash_equals($user->pending_email_token, $hash)) {
+        if (! hash_equals($user->pending_email_token, $hash)) {
             abort(403, 'Invalid email confirmation token.');
         }
 
@@ -57,6 +58,22 @@ class EmailChangeController extends Controller
             $user->save();
 
             return redirect()->route('profile.edit')->with('status', 'Email confirmation link expired. Please try again.');
+        }
+
+        // Re-check uniqueness at confirmation time: another account may have
+        // taken this address between the request and the confirmation (TOCTOU).
+        $taken = User::where('email', $user->pending_email)
+            ->where('id', '!=', $user->id)
+            ->exists();
+
+        if ($taken) {
+            $user->pending_email = null;
+            $user->pending_email_token = null;
+            $user->pending_email_requested_at = null;
+            $user->save();
+
+            return redirect()->route('profile.edit')
+                ->with('status', 'That email address is no longer available. Please try a different one.');
         }
 
         $user->email = $user->pending_email;

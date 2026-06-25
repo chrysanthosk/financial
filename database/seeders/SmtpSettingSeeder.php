@@ -12,16 +12,16 @@ class SmtpSettingSeeder extends Seeder
         // Ensure exactly one default row exists (idempotent)
         if (DB::table('smtp_settings')->count() === 0) {
             DB::table('smtp_settings')->insert([
-                'enabled'      => 0,
-                'host'         => null,
-                'port'         => null,
-                'username'     => null,
-                'password'     => null,
-                'encryption'   => null,
+                'enabled' => 0,
+                'host' => null,
+                'port' => null,
+                'username' => null,
+                'password' => null,
+                'encryption' => null,
                 'from_address' => null,
-                'from_name'    => null,
-                'created_at'   => now(),
-                'updated_at'   => now(),
+                'from_name' => null,
+                'created_at' => now(),
+                'updated_at' => now(),
             ]);
         }
     }

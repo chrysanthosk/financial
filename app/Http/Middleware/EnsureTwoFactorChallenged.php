@@ -10,7 +10,7 @@ class EnsureTwoFactorChallenged
     public function handle(Request $request, Closure $next)
     {
         // Only enforce when a session is marked as "pending 2FA challenge"
-        if (!$request->session()->has('2fa:user:id')) {
+        if (! $request->session()->has('2fa:user:id')) {
             return $next($request);
         }
 

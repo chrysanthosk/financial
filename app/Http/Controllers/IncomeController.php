@@ -133,7 +133,7 @@ class IncomeController extends Controller
             meta: [
                 'income_date' => (string) $income->income_date,
                 'income_source_id' => (int) $income->income_source_id,
-                'amount' => (float) $income->amount,
+                'amount' => number_format((float) $income->amount, 2, '.', ''),
                 'note_present' => ! empty($income->note),
             ]
         );
@@ -161,7 +161,7 @@ class IncomeController extends Controller
         $before = [
             'income_date' => (string) $income->income_date,
             'income_source_id' => (int) $income->income_source_id,
-            'amount' => (float) $income->amount,
+            'amount' => number_format((float) $income->amount, 2, '.', ''),
             'note' => (string) ($income->note ?? ''),
         ];
 
@@ -170,7 +170,7 @@ class IncomeController extends Controller
         $after = [
             'income_date' => (string) $income->income_date,
             'income_source_id' => (int) $income->income_source_id,
-            'amount' => (float) $income->amount,
+            'amount' => number_format((float) $income->amount, 2, '.', ''),
             'note' => (string) ($income->note ?? ''),
         ];
 
@@ -212,7 +212,7 @@ class IncomeController extends Controller
         $meta = [
             'income_date' => (string) $income->income_date,
             'income_source_id' => (int) $income->income_source_id,
-            'amount' => (float) $income->amount,
+            'amount' => number_format((float) $income->amount, 2, '.', ''),
             'note_present' => ! empty($income->note),
         ];
 
