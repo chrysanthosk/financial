@@ -219,7 +219,8 @@
 
 {{-- Chart.js --}}
 <script>
-document.addEventListener('DOMContentLoaded', function () {
+document.addEventListener('DOMContentLoaded', async function () {
+    const Chart = await window.loadChart();
     const isMobile = window.matchMedia("(max-width: 575.98px)").matches;
 
     const labels = @json($chartLabels);
