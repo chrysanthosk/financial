@@ -27,11 +27,19 @@ class DashboardController extends Controller
             $displayName = $user->name ?: ($user->email ?: 'User');
         }
 
+        // Selected month (YYYY-MM), defaulting to the current month.
+        $monthParam = $request->string('month')->toString();
+        if (! preg_match('/^\d{4}-\d{2}$/', $monthParam)) {
+            $monthParam = now()->format('Y-m');
+        }
+        $selected = Carbon::createFromFormat('Y-m', $monthParam)->startOfMonth();
+        $isCurrentMonth = $selected->isSameMonth(now());
+
         // Dates
         $today = now()->toDateString();
-        $startOfMonth = now()->copy()->startOfMonth()->toDateString();
-        $endOfMonth = now()->copy()->endOfMonth()->toDateString();
-        $daysInMonth = (int) now()->daysInMonth;
+        $startOfMonth = $selected->copy()->startOfMonth()->toDateString();
+        $endOfMonth = $selected->copy()->endOfMonth()->toDateString();
+        $daysInMonth = (int) $selected->daysInMonth;
 
         // Totals (DB SUM is exact for decimals)
         $todayIncome = round((float) Income::whereDate('income_date', $today)->sum('amount'), 2);
@@ -63,7 +71,7 @@ class DashboardController extends Controller
         $expenseByDay = array_fill(1, $daysInMonth, 0.0);
 
         for ($d = 1; $d <= $daysInMonth; $d++) {
-            $labels[] = Carbon::createFromDate(now()->year, now()->month, $d)->toDateString();
+            $labels[] = Carbon::createFromDate($selected->year, $selected->month, $d)->toDateString();
         }
 
         $incomeRows = Income::query()
@@ -117,6 +125,10 @@ class DashboardController extends Controller
         return view('dashboard', [
             'greeting' => $greeting,
             'displayName' => $displayName,
+
+            'month' => $monthParam,
+            'monthLabel' => $selected->format('F Y'),
+            'isCurrentMonth' => $isCurrentMonth,
 
             'todayIncome' => $todayIncome,
             'mtdIncome' => $mtdIncome,
