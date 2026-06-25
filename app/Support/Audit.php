@@ -21,14 +21,14 @@ class Audit
             $req = $request ?? request();
 
             AuditLog::create([
-                'user_id'     => $userId ?? (Auth::check() ? Auth::id() : null),
-                'action'      => $action,
-                'category'    => $category,
+                'user_id' => $userId ?? (Auth::check() ? Auth::id() : null),
+                'action' => $action,
+                'category' => $category,
                 'target_type' => $targetType,
-                'target_id'   => $targetId,
-                'ip'          => $req?->ip(),
-                'user_agent'  => substr((string)($req?->userAgent()), 0, 255),
-                'meta'        => $meta ?: null,
+                'target_id' => $targetId,
+                'ip' => $req?->ip(),
+                'user_agent' => substr((string) ($req?->userAgent()), 0, 255),
+                'meta' => $meta ?: null,
             ]);
         } catch (\Throwable $e) {
             // best-effort: never break the request due to audit logging

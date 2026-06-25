@@ -3,9 +3,9 @@
 namespace App\Providers;
 
 use App\Models\SmtpSetting;
-use Illuminate\Support\ServiceProvider;
-use Illuminate\Support\Facades\Schema;
 use Illuminate\Pagination\Paginator;
+use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -43,10 +43,10 @@ class AppServiceProvider extends ServiceProvider
                         'mail.mailers.smtp.encryption' => $s->encryption ?: null,
                     ]);
 
-                    if (!empty($s->from_address)) {
+                    if (! empty($s->from_address)) {
                         config(['mail.from.address' => $s->from_address]);
                     }
-                    if (!empty($s->from_name)) {
+                    if (! empty($s->from_name)) {
                         config(['mail.from.name' => $s->from_name]);
                     }
                 }

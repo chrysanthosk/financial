@@ -21,9 +21,9 @@ class SmtpSetting extends Model
     ];
 
     protected $casts = [
-        'enabled'  => 'boolean',
+        'enabled' => 'boolean',
         'password' => 'encrypted',
-        'port'     => 'integer',
+        'port' => 'integer',
         'last_tested_at' => 'datetime',
     ];
 
@@ -33,7 +33,7 @@ class SmtpSetting extends Model
      */
     public static function current(): ?self
     {
-        if (!Schema::hasTable('smtp_settings')) {
+        if (! Schema::hasTable('smtp_settings')) {
             return null;
         }
 

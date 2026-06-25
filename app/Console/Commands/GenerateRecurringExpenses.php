@@ -11,15 +11,21 @@ use Illuminate\Support\Facades\DB;
 
 class GenerateRecurringExpenses extends Command
 {
-    protected $signature   = 'expenses:generate-recurring {--dry-run : Show what would be generated without writing}';
+    protected $signature = 'expenses:generate-recurring {--dry-run : Show what would be generated without writing}';
+
     protected $description = 'Materialize active expense templates with auto_create=true into expenses, with month-level catch-up.';
+
+    /**
+     * Safety cap on how many months a single template will backfill in one run,
+     * so a very stale (or never-generated) template can't flood the ledger.
+     */
+    private const MAX_CATCHUP_MONTHS = 36;
 
     public function handle(): int
     {
-        $today        = Carbon::today();
-        $monthStart   = $today->copy()->startOfMonth();
-        $monthEnd     = $today->copy()->endOfMonth();
-        $dryRun       = (bool)$this->option('dry-run');
+        $today = Carbon::today();
+        $currentMonthStart = $today->copy()->startOfMonth();
+        $dryRun = (bool) $this->option('dry-run');
 
         $templates = ExpenseTemplate::query()
             ->where('is_active', true)
@@ -30,59 +36,72 @@ class GenerateRecurringExpenses extends Command
         $skipped = 0;
 
         foreach ($templates as $tpl) {
-            // Already generated this calendar month? skip.
-            if ($tpl->last_generated_on && $tpl->last_generated_on->greaterThanOrEqualTo($monthStart)) {
-                $skipped++;
-                continue;
-            }
+            $day = (int) $tpl->day_of_month; // 1-28 per validation, no clamping needed
 
-            // Only fire once we're at or past the configured day-of-month.
-            // day_of_month is 1-28 per validation, so clamping isn't needed.
-            if ($today->day < (int)$tpl->day_of_month) {
-                $skipped++;
-                continue;
-            }
+            // First month to consider: the month *after* the last generated one,
+            // or the current month if this template has never generated. This
+            // backfills any months missed while the scheduler was not running.
+            $cursor = $tpl->last_generated_on
+                ? $tpl->last_generated_on->copy()->startOfMonth()->addMonth()
+                : $currentMonthStart->copy();
 
-            $targetDate = $monthStart->copy()->addDays((int)$tpl->day_of_month - 1);
-            if ($targetDate->greaterThan($monthEnd)) {
-                $targetDate = $monthEnd->copy();
-            }
+            $generatedForTpl = 0;
+            $iterations = 0;
 
-            $this->line(sprintf(
-                '%s template #%d "%s" (€%s) on %s',
-                $dryRun ? '[dry-run]' : '[create]',
-                $tpl->id,
-                $tpl->name,
-                number_format((float)$tpl->amount, 2),
-                $targetDate->toDateString()
-            ));
+            while ($cursor->lessThanOrEqualTo($currentMonthStart) && $iterations < self::MAX_CATCHUP_MONTHS) {
+                $iterations++;
 
-            if ($dryRun) {
+                $monthEnd = $cursor->copy()->endOfMonth();
+                $targetDate = $cursor->copy()->addDays($day - 1);
+                if ($targetDate->greaterThan($monthEnd)) {
+                    $targetDate = $monthEnd->copy();
+                }
+
+                // Don't generate a month whose target day hasn't arrived yet
+                // (only ever true for the current month). Stop walking forward.
+                if ($targetDate->greaterThan($today)) {
+                    break;
+                }
+
+                $this->line(sprintf(
+                    '%s template #%d "%s" (€%s) on %s',
+                    $dryRun ? '[dry-run]' : '[create]',
+                    $tpl->id,
+                    $tpl->name,
+                    number_format((float) $tpl->amount, 2),
+                    $targetDate->toDateString()
+                ));
+
+                if (! $dryRun) {
+                    DB::transaction(function () use ($tpl, $targetDate) {
+                        $expense = Expense::create($tpl->toExpenseAttributes($targetDate, $tpl->created_by));
+                        $tpl->forceFill(['last_generated_on' => $targetDate])->save();
+
+                        Audit::log(
+                            action: 'expense_template.inserted',
+                            category: 'expenses',
+                            request: null,
+                            userId: $tpl->created_by,
+                            targetType: 'Expense',
+                            targetId: (string) $expense->id,
+                            meta: [
+                                'template_id' => $tpl->id,
+                                'amount' => (float) $expense->amount,
+                                'payee_name' => $expense->payee_name,
+                                'source' => 'auto',
+                            ]
+                        );
+                    });
+                }
+
                 $created++;
-                continue;
+                $generatedForTpl++;
+                $cursor->addMonth();
             }
 
-            DB::transaction(function () use ($tpl, $targetDate) {
-                $expense = Expense::create($tpl->toExpenseAttributes($targetDate, $tpl->created_by));
-                $tpl->forceFill(['last_generated_on' => $targetDate])->save();
-
-                Audit::log(
-                    action: 'expense_template.inserted',
-                    category: 'expenses',
-                    request: null,
-                    userId: $tpl->created_by,
-                    targetType: 'Expense',
-                    targetId: (string)$expense->id,
-                    meta: [
-                        'template_id' => $tpl->id,
-                        'amount'      => (float)$expense->amount,
-                        'payee_name'  => $expense->payee_name,
-                        'source'      => 'auto',
-                    ]
-                );
-            });
-
-            $created++;
+            if ($generatedForTpl === 0) {
+                $skipped++;
+            }
         }
 
         $this->info(sprintf(

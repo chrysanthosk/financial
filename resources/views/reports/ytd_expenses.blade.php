@@ -99,8 +99,8 @@
 
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
+document.addEventListener('DOMContentLoaded', function () {
   const labels = @json($labels);
   const series = @json($byMonth);
 
@@ -113,5 +113,6 @@
       scales: { y: { beginAtZero: true } }
     }
   });
+});
 </script>
 @endsection

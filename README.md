@@ -12,7 +12,8 @@ A single-tenant financial tracking portal built on Laravel 12. Track **income** 
 | PHP | ^8.2 (developed on 8.5) |
 | UI framework | AdminLTE 4.0.0-rc6 (Bootstrap 5) |
 | JS | Alpine.js 3.x, Axios 1.x |
-| CSS | AdminLTE + custom dark-mode overrides; Tailwind CSS 3.x (pagination only) |
+| CSS | AdminLTE + custom dark-mode overrides (Bootstrap 5) |
+| Charts | Chart.js (bundled via Vite) |
 | Icons | FontAwesome 7.x |
 | Asset build | Vite 7.x with laravel-vite-plugin |
 | Database | SQLite (default) / MySQL (supported) |
@@ -348,15 +349,19 @@ All queries and aggregations are DB-agnostic (no SQLite- or MySQL-specific date 
 
 ---
 
-## Tests
+## Quality checks
 
 ```bash
-php artisan test
+php artisan test          # PHPUnit suite (116 tests)
+composer lint:test        # Laravel Pint code-style check (composer lint to fix)
+composer analyse          # PHPStan / Larastan static analysis (level 5)
 ```
+
+All three run in CI (`.github/workflows/ci.yml`) on push and pull request, alongside a `npm run build` asset job.
 
 Test environment uses in-memory SQLite (`DB_DATABASE=:memory:`), `BCRYPT_ROUNDS=4`, array session/cache/mail drivers, and synchronous queue.
 
-Current coverage: Breeze-scaffolded auth tests (`tests/Feature/Auth/`) and a profile test. Business logic (income/expense CRUD, reports, 2FA flow, import wizard, audit logging) does not yet have test coverage — the infrastructure is in place to add it.
+Coverage spans auth, profile, 2FA, income/expense/employee-income CRUD, reports, configuration, audit/application logs, data maintenance, user management, the spreadsheet import wizard, the recurring-expense command (incl. month catch-up), the bonus calculator, expense templates, SMTP settings, and theme switching. Model factories live in `database/factories/`. PHPStan runs against a baseline (`phpstan-baseline.neon`) so CI fails only on newly introduced issues.
 
 ---
 

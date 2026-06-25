@@ -33,36 +33,38 @@ class SmtpSettingsController extends Controller
 
     public function update(Request $request)
     {
-        if (!\Schema::hasTable('smtp_settings')) {
+        if (! \Schema::hasTable('smtp_settings')) {
             return back()->withErrors([
                 'smtp_test' => 'SMTP settings table is missing. Please run migrations.',
             ]);
         }
 
         $validated = $request->validate([
-            'enabled'      => ['nullable', 'boolean'],
-            'host'         => ['nullable', 'string', 'max:255'],
-            'port'         => ['nullable', 'integer', 'min:1', 'max:65535'],
-            'username'     => ['nullable', 'string', 'max:255'],
-            'password'     => ['nullable', 'string', 'max:2048'],
-            'encryption'   => ['nullable', 'in:tls,ssl'],
+            'enabled' => ['nullable', 'boolean'],
+            'host' => ['nullable', 'string', 'max:255'],
+            'port' => ['nullable', 'integer', 'min:1', 'max:65535'],
+            'username' => ['nullable', 'string', 'max:255'],
+            'password' => ['nullable', 'string', 'max:2048'],
+            'encryption' => ['nullable', 'in:tls,ssl'],
             'from_address' => ['nullable', 'email', 'max:255'],
-            'from_name'    => ['nullable', 'string', 'max:255'],
+            'from_name' => ['nullable', 'string', 'max:255'],
         ]);
 
-        $smtp = SmtpSetting::current();
+        // Use currentOrCreate so the first save on a fresh install (no row yet)
+        // does not assign properties on null.
+        $smtp = SmtpSetting::currentOrCreate();
 
         // Assign everything except password first
-        $smtp->enabled      = (bool)($validated['enabled'] ?? false);
-        $smtp->host         = $validated['host'] ?? null;
-        $smtp->port         = $validated['port'] ?? null;
-        $smtp->username     = $validated['username'] ?? null;
-        $smtp->encryption   = $validated['encryption'] ?? null;
+        $smtp->enabled = (bool) ($validated['enabled'] ?? false);
+        $smtp->host = $validated['host'] ?? null;
+        $smtp->port = $validated['port'] ?? null;
+        $smtp->username = $validated['username'] ?? null;
+        $smtp->encryption = $validated['encryption'] ?? null;
         $smtp->from_address = $validated['from_address'] ?? null;
-        $smtp->from_name    = $validated['from_name'] ?? null;
+        $smtp->from_name = $validated['from_name'] ?? null;
 
         // Only update password if provided (so you can keep existing)
-        if (!empty($validated['password'])) {
+        if (! empty($validated['password'])) {
             $smtp->password = $validated['password']; // encrypted cast handles it
         }
 
@@ -74,7 +76,7 @@ class SmtpSettingsController extends Controller
             request: $request,
             userId: $request->user()?->id,
             targetType: 'SmtpSetting',
-            targetId: (string)$smtp->id,
+            targetId: (string) $smtp->id,
             meta: [
                 'enabled' => $smtp->enabled,
                 'host' => $smtp->host,
@@ -82,7 +84,7 @@ class SmtpSettingsController extends Controller
                 'encryption' => $smtp->encryption,
                 'from_address' => $smtp->from_address,
                 'from_name' => $smtp->from_name,
-                'password_changed' => !empty($validated['password']),
+                'password_changed' => ! empty($validated['password']),
             ]
         );
 
@@ -95,7 +97,7 @@ class SmtpSettingsController extends Controller
      */
     public function test(Request $request)
     {
-        if (!\Schema::hasTable('smtp_settings')) {
+        if (! \Schema::hasTable('smtp_settings')) {
             return back()->withErrors([
                 'smtp_test' => 'SMTP settings table is missing. Please run migrations.',
             ]);
@@ -107,7 +109,7 @@ class SmtpSettingsController extends Controller
 
         $smtp = SmtpSetting::current();
 
-        if (!$smtp || !$smtp->enabled) {
+        if (! $smtp || ! $smtp->enabled) {
             return back()->withErrors([
                 'smtp_test' => 'SMTP is disabled. Enable it first.',
             ]);
@@ -123,10 +125,10 @@ class SmtpSettingsController extends Controller
 
         try {
             Mail::raw(
-                "This is a test email from " . ($smtp->from_name ?: config('app.name')) . ".",
+                'This is a test email from '.($smtp->from_name ?: config('app.name')).'.',
                 function ($message) use ($to, $smtp) {
                     // Explicit FROM if set (good for many SMTP providers)
-                    if (!empty($smtp->from_address)) {
+                    if (! empty($smtp->from_address)) {
                         $message->from($smtp->from_address, $smtp->from_name ?: config('app.name'));
                     }
 
@@ -144,7 +146,7 @@ class SmtpSettingsController extends Controller
                 request: $request,
                 userId: $request->user()?->id,
                 targetType: 'SmtpSetting',
-                targetId: (string)$smtp->id,
+                targetId: (string) $smtp->id,
                 meta: [
                     'to' => $to,
                     'host' => $smtp->host,
@@ -160,7 +162,7 @@ class SmtpSettingsController extends Controller
                 request: $request,
                 userId: $request->user()?->id,
                 targetType: 'SmtpSetting',
-                targetId: (string)$smtp->id,
+                targetId: (string) $smtp->id,
                 meta: [
                     'to' => $to,
                     'error' => $e->getMessage(),
@@ -168,7 +170,7 @@ class SmtpSettingsController extends Controller
             );
 
             return back()->withErrors([
-                'smtp_test' => 'SMTP test failed: ' . $e->getMessage(),
+                'smtp_test' => 'SMTP test failed. Check the audit log for details.',
             ]);
         }
 

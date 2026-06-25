@@ -47,8 +47,8 @@
 
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
+document.addEventListener('DOMContentLoaded', function () {
   const labels = @json($labels);
   const cur = @json($incomeYear);
   const prev = @json($incomePrev);
@@ -69,5 +69,6 @@
       scales: { y: { beginAtZero: true } }
     }
   });
+});
 </script>
 @endsection

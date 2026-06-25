@@ -82,8 +82,8 @@
 
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
+document.addEventListener('DOMContentLoaded', function () {
   const labels = @json($chartLabels);
   const totals = @json($chartTotals);
 
@@ -100,5 +100,6 @@
       }
     });
   }
+});
 </script>
 @endsection

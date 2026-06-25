@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Http\Requests\EmployeeIncomeRequest;
 use App\Models\Employee;
 use App\Models\EmployeeIncome;
+use App\Support\Audit;
 use Illuminate\Http\Request;
 
 class EmployeeIncomeController extends Controller
@@ -17,7 +18,6 @@ class EmployeeIncomeController extends Controller
         $query = EmployeeIncome::query()
             ->with('employee')
             ->where('year', $year)
-            ->orderBy('year', 'desc')
             ->orderBy('month', 'desc');
 
         if (! empty($month)) {
@@ -36,7 +36,7 @@ class EmployeeIncomeController extends Controller
     public function create()
     {
         $employees = Employee::query()
-            ->where('is_active', 1)
+            ->where('is_active', true)
             ->orderBy('sort_order')
             ->orderBy('name')
             ->get();
@@ -50,7 +50,21 @@ class EmployeeIncomeController extends Controller
 
     public function store(EmployeeIncomeRequest $request)
     {
-        EmployeeIncome::create($request->validated());
+        $row = EmployeeIncome::create($request->validated());
+
+        Audit::log(
+            action: 'employee_income.created',
+            category: 'income',
+            request: $request,
+            userId: $request->user()?->id,
+            targetType: 'EmployeeIncome',
+            targetId: (string) $row->id,
+            meta: [
+                'employee_id' => $row->employee_id,
+                'year' => $row->year,
+                'month' => $row->month,
+            ]
+        );
 
         return redirect()->route('admin.emp_income.index')->with('status', 'Employee income added.');
     }
@@ -58,7 +72,7 @@ class EmployeeIncomeController extends Controller
     public function edit(EmployeeIncome $emp_income)
     {
         $employees = Employee::query()
-            ->where('is_active', 1)
+            ->where('is_active', true)
             ->orderBy('sort_order')
             ->orderBy('name')
             ->get();
@@ -73,12 +87,36 @@ class EmployeeIncomeController extends Controller
     {
         $emp_income->update($request->validated());
 
+        Audit::log(
+            action: 'employee_income.updated',
+            category: 'income',
+            request: $request,
+            userId: $request->user()?->id,
+            targetType: 'EmployeeIncome',
+            targetId: (string) $emp_income->id,
+            meta: [
+                'employee_id' => $emp_income->employee_id,
+                'year' => $emp_income->year,
+                'month' => $emp_income->month,
+            ]
+        );
+
         return redirect()->route('admin.emp_income.index')->with('status', 'Employee income updated.');
     }
 
-    public function destroy(EmployeeIncome $emp_income)
+    public function destroy(Request $request, EmployeeIncome $emp_income)
     {
+        $id = $emp_income->id;
         $emp_income->delete();
+
+        Audit::log(
+            action: 'employee_income.deleted',
+            category: 'income',
+            request: $request,
+            userId: $request->user()?->id,
+            targetType: 'EmployeeIncome',
+            targetId: (string) $id,
+        );
 
         return back()->with('status', 'Employee income deleted.');
     }
