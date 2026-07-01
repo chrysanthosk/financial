@@ -138,6 +138,46 @@
                                 </li>
                             @endif
 
+                            @if(\Illuminate\Support\Facades\Route::has('reports.revenue_by_year'))
+                                <li>
+                                    <a href="{{ route('reports.revenue_by_year') }}" class="dropdown-item">
+                                        <i class="fas fa-building me-2"></i> Company Revenue by Year
+                                    </a>
+                                </li>
+                            @endif
+
+                            @if(\Illuminate\Support\Facades\Route::has('reports.profit_margin_by_year'))
+                                <li>
+                                    <a href="{{ route('reports.profit_margin_by_year') }}" class="dropdown-item">
+                                        <i class="fas fa-percentage me-2"></i> Profit Margin by Year
+                                    </a>
+                                </li>
+                            @endif
+
+                            @if(\Illuminate\Support\Facades\Route::has('reports.income_source_by_year'))
+                                <li>
+                                    <a href="{{ route('reports.income_source_by_year') }}" class="dropdown-item">
+                                        <i class="fas fa-stream me-2"></i> Income Source by Year
+                                    </a>
+                                </li>
+                            @endif
+
+                            @if(\Illuminate\Support\Facades\Route::has('reports.cash_flow'))
+                                <li>
+                                    <a href="{{ route('reports.cash_flow') }}" class="dropdown-item">
+                                        <i class="fas fa-wallet me-2"></i> Cash Flow / Net Position
+                                    </a>
+                                </li>
+                            @endif
+
+                            @if(\Illuminate\Support\Facades\Route::has('reports.quarterly_summary'))
+                                <li>
+                                    <a href="{{ route('reports.quarterly_summary') }}" class="dropdown-item">
+                                        <i class="fas fa-calendar-alt me-2"></i> Quarterly Summary
+                                    </a>
+                                </li>
+                            @endif
+
                             @if(\Illuminate\Support\Facades\Route::has('reports.prev_year_comparison'))
                                 <li>
                                     <a href="{{ route('reports.prev_year_comparison') }}" class="dropdown-item">
@@ -169,6 +209,15 @@
                                 <li>
                                     <a href="{{ route('reports.employee_income') }}" class="dropdown-item">
                                         <i class="fas fa-user-tie me-2"></i> Employee Income
+                                    </a>
+                                </li>
+                            @endif
+
+                            {{-- Employee Revenue by Year report (admin only) --}}
+                            @if($isAdmin && \Illuminate\Support\Facades\Route::has('reports.employee_revenue_by_year'))
+                                <li>
+                                    <a href="{{ route('reports.employee_revenue_by_year') }}" class="dropdown-item">
+                                        <i class="fas fa-users me-2"></i> Employee Revenue by Year
                                     </a>
                                 </li>
                             @endif
