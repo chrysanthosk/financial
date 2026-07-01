@@ -56,6 +56,7 @@
               <th style="width:120px;">Month</th>
               <th style="width:120px;">Year</th>
               <th class="text-end" style="width:180px;">Total</th>
+              <th class="text-end" style="width:160px;">Bonus</th>
               <th class="text-end" style="width:220px;">Actions</th>
             </tr>
           </thead>
@@ -66,6 +67,10 @@
                 <td>{{ str_pad($r->month, 2, '0', STR_PAD_LEFT) }}</td>
                 <td>{{ $r->year }}</td>
                 <td class="text-end">{{ number_format((float)$r->total_amount, 2) }}</td>
+                <td class="text-end">
+                  {{ number_format((float)($bonuses[$r->id]['amount'] ?? 0), 2) }}
+                  <span class="text-muted small">({{ number_format(($bonuses[$r->id]['rate'] ?? 0) * 100, 0) }}%)</span>
+                </td>
                 <td class="text-end">
                   <a class="btn btn-sm btn-outline-primary" href="{{ route('admin.emp_income.edit', $r) }}">
                     <i class="fas fa-edit"></i> Edit
@@ -83,7 +88,7 @@
               </tr>
             @empty
               <tr>
-                <td colspan="5" class="text-muted">No records found.</td>
+                <td colspan="6" class="text-muted">No records found.</td>
               </tr>
             @endforelse
           </tbody>
