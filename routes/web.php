@@ -158,6 +158,11 @@ Route::middleware('auth')->group(function () {
         Route::get('/', [ReportsController::class, 'index'])->name('index');
 
         // Core
+        Route::get('/revenue-by-year', [ReportsController::class, 'revenueByYear'])->name('revenue_by_year');
+        Route::get('/profit-margin-by-year', [ReportsController::class, 'profitMarginByYear'])->name('profit_margin_by_year');
+        Route::get('/income-source-by-year', [ReportsController::class, 'incomeSourceByYear'])->name('income_source_by_year');
+        Route::get('/cash-flow', [ReportsController::class, 'cashFlow'])->name('cash_flow');
+        Route::get('/quarterly-summary', [ReportsController::class, 'quarterlySummary'])->name('quarterly_summary');
         Route::get('/monthly-profit', [ReportsController::class, 'monthlyProfit'])->name('monthly_profit');
         Route::get('/ytd-income', [ReportsController::class, 'ytdIncome'])->name('ytd_income');
         Route::get('/ytd-expenses', [ReportsController::class, 'ytdExpenses'])->name('ytd_expenses');
@@ -176,6 +181,10 @@ Route::middleware('auth')->group(function () {
         // Employee Income report page
         Route::get('/employee-income', [ReportsController::class, 'employeeIncome'])
             ->name('employee_income')
+            ->middleware('admin');
+
+        Route::get('/employee-revenue-by-year', [ReportsController::class, 'employeeRevenueByYear'])
+            ->name('employee_revenue_by_year')
             ->middleware('admin');
 
         Route::get('/prev-year-monthly-income', [ReportsController::class, 'prevYearMonthlyIncomeComparison'])
