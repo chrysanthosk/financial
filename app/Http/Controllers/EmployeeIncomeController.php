@@ -5,11 +5,14 @@ namespace App\Http\Controllers;
 use App\Http\Requests\EmployeeIncomeRequest;
 use App\Models\Employee;
 use App\Models\EmployeeIncome;
+use App\Services\BonusCalculator;
 use App\Support\Audit;
 use Illuminate\Http\Request;
 
 class EmployeeIncomeController extends Controller
 {
+    public function __construct(private BonusCalculator $bonus) {}
+
     public function index(Request $request)
     {
         $year = (int) ($request->query('year', now()->year));
@@ -26,8 +29,17 @@ class EmployeeIncomeController extends Controller
 
         $rows = $query->paginate(20)->withQueryString();
 
+        // Suggested bonus per month, derived from the amount via the bonus bands.
+        // Keyed by row id so the view stays a plain lookup (no model mutation).
+        $bonuses = [];
+        foreach ($rows as $r) {
+            $calc = $this->bonus->calculate($r->total_amount);
+            $bonuses[$r->id] = ['amount' => $calc['bonus'], 'rate' => $calc['rate']];
+        }
+
         return view('emp_income.index', [
             'rows' => $rows,
+            'bonuses' => $bonuses,
             'year' => $year,
             'month' => $month,
         ]);

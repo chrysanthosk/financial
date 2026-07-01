@@ -84,6 +84,27 @@ class EmployeeIncomeTest extends TestCase
         $this->assertDatabaseHas('employee_incomes', ['id' => $row->id, 'total_amount' => '1500.00']);
     }
 
+    public function test_index_shows_suggested_bonus_column(): void
+    {
+        $admin = $this->admin();
+        $employee = Employee::create(['name' => 'Jane', 'sort_order' => 1, 'is_active' => true]);
+
+        // 3000 falls in the [2800, 4000) band => 4% => bonus 120.00.
+        EmployeeIncome::create([
+            'employee_id' => $employee->id,
+            'month' => 5,
+            'year' => 2026,
+            'total_amount' => '3000.00',
+        ]);
+
+        $response = $this->actingAs($admin)->get(route('admin.emp_income.index', ['year' => 2026]));
+
+        $response->assertOk()
+            ->assertSee('Bonus')
+            ->assertSee('120.00')
+            ->assertSee('4%');
+    }
+
     public function test_non_admin_cannot_create_employee_income(): void
     {
         $user = User::factory()->create(['role' => 'user']);
