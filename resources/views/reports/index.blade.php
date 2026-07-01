@@ -154,6 +154,36 @@
         <div class="list-group">
 
           <a class="list-group-item list-group-item-action d-flex justify-content-between align-items-center"
+             href="{{ route('reports.revenue_by_year', ['year' => $year]) }}">
+            <span><i class="fas fa-building me-2"></i> Company Revenue by Year</span>
+            <span class="text-muted small">Income • Expenses • Profit • Multi-year</span>
+          </a>
+
+          <a class="list-group-item list-group-item-action d-flex justify-content-between align-items-center"
+             href="{{ route('reports.profit_margin_by_year', ['year' => $year]) }}">
+            <span><i class="fas fa-percentage me-2"></i> Profit Margin by Year</span>
+            <span class="text-muted small">Profit ÷ income • Margin % trend</span>
+          </a>
+
+          <a class="list-group-item list-group-item-action d-flex justify-content-between align-items-center"
+             href="{{ route('reports.income_source_by_year', ['year' => $year]) }}">
+            <span><i class="fas fa-stream me-2"></i> Income Source by Year</span>
+            <span class="text-muted small">Revenue per source • Source × year</span>
+          </a>
+
+          <a class="list-group-item list-group-item-action d-flex justify-content-between align-items-center"
+             href="{{ route('reports.cash_flow', ['year' => $year]) }}">
+            <span><i class="fas fa-wallet me-2"></i> Cash Flow / Net Position</span>
+            <span class="text-muted small">Monthly net • Running balance</span>
+          </a>
+
+          <a class="list-group-item list-group-item-action d-flex justify-content-between align-items-center"
+             href="{{ route('reports.quarterly_summary', ['year' => $year]) }}">
+            <span><i class="fas fa-calendar-alt me-2"></i> Quarterly Summary</span>
+            <span class="text-muted small">Income • Expenses • Profit by quarter</span>
+          </a>
+
+          <a class="list-group-item list-group-item-action d-flex justify-content-between align-items-center"
              href="{{ route('reports.ytd_income', ['year' => $year]) }}">
             <span><i class="fas fa-coins me-2"></i> Year-to-Date Income</span>
             <span class="text-muted small">Totals • Method breakdown • Monthly chart</span>
@@ -221,6 +251,12 @@
                href="{{ route('reports.employee_income', ['year' => $year]) }}">
               <span><i class="fas fa-user-tie me-2"></i> Employee Income</span>
               <span class="text-muted small">Monthly totals per employee • Year selector</span>
+            </a>
+
+            <a class="list-group-item list-group-item-action d-flex justify-content-between align-items-center"
+               href="{{ route('reports.employee_revenue_by_year', ['year' => $year]) }}">
+              <span><i class="fas fa-users me-2"></i> Employee Revenue by Year</span>
+              <span class="text-muted small">Contribution per employee • Multi-year</span>
             </a>
           @endif
 

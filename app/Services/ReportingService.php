@@ -80,6 +80,31 @@ class ReportingService
     }
 
     /**
+     * Bucket a row collection into [year => float] by the year of $dateField,
+     * keeping only the years within [$startYear, $endYear] (missing years => 0).
+     * Accumulates in integer cents for exact totals.
+     *
+     * @param  iterable<object>  $rows
+     * @return array<int, float>
+     */
+    public function bucketByYear(iterable $rows, string $dateField, int $startYear, int $endYear, string $amountField = 'amount'): array
+    {
+        $cents = [];
+        for ($y = $startYear; $y <= $endYear; $y++) {
+            $cents[$y] = 0;
+        }
+
+        foreach ($rows as $r) {
+            $y = Carbon::parse($r->{$dateField})->year;
+            if (isset($cents[$y])) {
+                $cents[$y] += $this->toCents($r->{$amountField});
+            }
+        }
+
+        return array_map(fn (int $c) => $this->fromCents($c), $cents);
+    }
+
+    /**
      * Aggregate rows into [label => float total], sorted by total descending.
      * Accumulates in integer cents for exact totals.
      *
@@ -138,6 +163,101 @@ class ReportingService
             'income' => $income,
             'expenses' => $expenses,
             'profit' => round($income - $expenses, 2),
+        ];
+    }
+
+    /**
+     * Company income / expenses / profit per year across a span ending at
+     * $endYear (inclusive). Rows are ordered oldest → newest. Years without
+     * activity are still returned with zero totals so the series is contiguous.
+     *
+     * @return array<int, array{year: int, income: float, expenses: float, profit: float}>
+     */
+    public function revenueByYear(int $endYear, int $span = 10): array
+    {
+        $span = max(1, $span);
+        $startYear = $endYear - $span + 1;
+
+        ['from' => $from] = $this->yearRange($startYear);
+        ['to' => $to] = $this->yearRange($endYear);
+
+        $incomeByYear = $this->bucketByYear(
+            Income::whereBetween('income_date', [$from, $to])->get(['income_date', 'amount']),
+            'income_date',
+            $startYear,
+            $endYear
+        );
+        $expenseByYear = $this->bucketByYear(
+            Expense::whereBetween('expense_date', [$from, $to])->get(['expense_date', 'amount']),
+            'expense_date',
+            $startYear,
+            $endYear
+        );
+
+        $rows = [];
+        for ($y = $startYear; $y <= $endYear; $y++) {
+            $income = $incomeByYear[$y];
+            $expenses = $expenseByYear[$y];
+            $rows[] = [
+                'year' => $y,
+                'income' => $income,
+                'expenses' => $expenses,
+                'profit' => round($income - $expenses, 2),
+            ];
+        }
+
+        return $rows;
+    }
+
+    /**
+     * Monthly cash-flow for a year: the opening balance (net of all activity
+     * strictly before the year), each month's net movement, and the running
+     * (cumulative) net position after each month.
+     *
+     * @return array{
+     *     opening: float,
+     *     incomeByMonth: array<int, float>,
+     *     expenseByMonth: array<int, float>,
+     *     netByMonth: array<int, float>,
+     *     runningByMonth: array<int, float>,
+     *     closing: float
+     * }
+     */
+    public function cashFlow(int $year): array
+    {
+        ['from' => $from, 'to' => $to] = $this->yearRange($year);
+
+        // Opening balance = everything that happened before the year started.
+        $openingIncome = round((float) Income::where('income_date', '<', $from)->sum('amount'), 2);
+        $openingExpense = round((float) Expense::where('expense_date', '<', $from)->sum('amount'), 2);
+        $opening = round($openingIncome - $openingExpense, 2);
+
+        $incomeByMonth = $this->bucketByMonth(
+            Income::whereBetween('income_date', [$from, $to])->get(['income_date', 'amount']),
+            'income_date'
+        );
+        $expenseByMonth = $this->bucketByMonth(
+            Expense::whereBetween('expense_date', [$from, $to])->get(['expense_date', 'amount']),
+            'expense_date'
+        );
+
+        $running = $opening;
+        $netByMonth = [];
+        $runningByMonth = [];
+        for ($m = 1; $m <= 12; $m++) {
+            $net = round($incomeByMonth[$m] - $expenseByMonth[$m], 2);
+            $running = round($running + $net, 2);
+            $netByMonth[$m] = $net;
+            $runningByMonth[$m] = $running;
+        }
+
+        return [
+            'opening' => $opening,
+            'incomeByMonth' => $incomeByMonth,
+            'expenseByMonth' => $expenseByMonth,
+            'netByMonth' => $netByMonth,
+            'runningByMonth' => $runningByMonth,
+            'closing' => $running,
         ];
     }
 

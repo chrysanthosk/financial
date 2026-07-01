@@ -75,6 +75,176 @@ class ReportsController extends Controller
         ]);
     }
 
+    public function revenueByYear(Request $request)
+    {
+        $endYear = (int) ($request->query('year') ?: now()->year);
+        $span = (int) ($request->query('years') ?: 10);
+        $span = max(1, min(50, $span));
+
+        $rows = $this->reports->revenueByYear($endYear, $span);
+
+        $labels = array_map(fn ($r) => (string) $r['year'], $rows);
+        $incomeByYear = array_map(fn ($r) => $r['income'], $rows);
+        $expenseByYear = array_map(fn ($r) => $r['expenses'], $rows);
+        $profitByYear = array_map(fn ($r) => $r['profit'], $rows);
+
+        return view('reports.revenue_by_year', [
+            'endYear' => $endYear,
+            'span' => $span,
+            'rows' => $rows,
+            'labels' => $labels,
+            'incomeByYear' => $incomeByYear,
+            'expenseByYear' => $expenseByYear,
+            'profitByYear' => $profitByYear,
+            'totalIncome' => round(array_sum($incomeByYear), 2),
+            'totalExpenses' => round(array_sum($expenseByYear), 2),
+            'totalProfit' => round(array_sum($profitByYear), 2),
+        ]);
+    }
+
+    public function profitMarginByYear(Request $request)
+    {
+        $endYear = (int) ($request->query('year') ?: now()->year);
+        $span = (int) ($request->query('years') ?: 10);
+        $span = max(1, min(50, $span));
+
+        $rows = $this->reports->revenueByYear($endYear, $span);
+
+        // Margin % = profit / income * 100 (0 when there is no income).
+        foreach ($rows as &$r) {
+            $r['margin'] = $r['income'] > 0 ? round($r['profit'] / $r['income'] * 100, 1) : 0.0;
+        }
+        unset($r);
+
+        $labels = array_map(fn ($r) => (string) $r['year'], $rows);
+
+        return view('reports.profit_margin_by_year', [
+            'endYear' => $endYear,
+            'span' => $span,
+            'rows' => $rows,
+            'labels' => $labels,
+            'incomeByYear' => array_map(fn ($r) => $r['income'], $rows),
+            'profitByYear' => array_map(fn ($r) => $r['profit'], $rows),
+            'marginByYear' => array_map(fn ($r) => $r['margin'], $rows),
+        ]);
+    }
+
+    public function cashFlow(Request $request)
+    {
+        $year = (int) ($request->query('year') ?: now()->year);
+
+        $flow = $this->reports->cashFlow($year);
+        $labels = $this->reports->monthLabels($year);
+
+        return view('reports.cash_flow', [
+            'year' => $year,
+            'labels' => $labels,
+            'opening' => $flow['opening'],
+            'closing' => $flow['closing'],
+            'incomeByMonth' => array_values($flow['incomeByMonth']),
+            'expenseByMonth' => array_values($flow['expenseByMonth']),
+            'netByMonth' => array_values($flow['netByMonth']),
+            'runningByMonth' => array_values($flow['runningByMonth']),
+        ]);
+    }
+
+    public function incomeSourceByYear(Request $request)
+    {
+        $endYear = (int) ($request->query('year') ?: now()->year);
+        $span = (int) ($request->query('years') ?: 10);
+        $span = max(1, min(50, $span));
+        $startYear = $endYear - $span + 1;
+
+        ['from' => $from] = $this->reports->yearRange($startYear);
+        ['to' => $to] = $this->reports->yearRange($endYear);
+
+        $incomeRows = Income::with('source')
+            ->whereBetween('income_date', [$from, $to])
+            ->get(['income_date', 'income_source_id', 'amount']);
+
+        // Accumulate cents into [source][year] so totals stay exact.
+        $cents = [];
+        foreach ($incomeRows as $r) {
+            $source = $r->source?->name ?? 'Unknown';
+            $y = Carbon::parse($r->income_date)->year;
+            $cents[$source][$y] = ($cents[$source][$y] ?? 0) + $this->reports->toCents($r->amount);
+        }
+
+        $years = range($startYear, $endYear);
+
+        // Build one row per source (sorted by grand total desc) + per-year totals.
+        $rows = [];
+        $totalsByYear = array_fill_keys($years, 0.0);
+        foreach ($cents as $source => $byYear) {
+            $series = [];
+            $rowTotal = 0.0;
+            foreach ($years as $y) {
+                $val = $this->reports->fromCents($byYear[$y] ?? 0);
+                $series[] = $val;
+                $rowTotal = round($rowTotal + $val, 2);
+                $totalsByYear[$y] = round($totalsByYear[$y] + $val, 2);
+            }
+            $rows[] = ['source' => $source, 'series' => $series, 'total' => $rowTotal];
+        }
+        usort($rows, fn ($a, $b) => $b['total'] <=> $a['total']);
+
+        $datasets = array_map(fn ($r) => ['label' => $r['source'], 'data' => $r['series']], $rows);
+
+        return view('reports.income_source_by_year', [
+            'endYear' => $endYear,
+            'span' => $span,
+            'years' => $years,
+            'labels' => array_map(fn ($y) => (string) $y, $years),
+            'rows' => $rows,
+            'datasets' => $datasets,
+            'totalsByYear' => array_values($totalsByYear),
+            'grandTotal' => round(array_sum($totalsByYear), 2),
+        ]);
+    }
+
+    public function quarterlySummary(Request $request)
+    {
+        $year = (int) ($request->query('year') ?: now()->year);
+
+        $incomeByMonth = $this->reports->bucketByMonth(
+            Income::whereBetween('income_date', $this->reports->yearRange($year))->get(['income_date', 'amount']),
+            'income_date'
+        );
+        $expenseByMonth = $this->reports->bucketByMonth(
+            Expense::whereBetween('expense_date', $this->reports->yearRange($year))->get(['expense_date', 'amount']),
+            'expense_date'
+        );
+
+        // Fold the 12 months into 4 quarters.
+        $rows = [];
+        $incomeByQuarter = [];
+        $expenseByQuarter = [];
+        $profitByQuarter = [];
+        for ($q = 1; $q <= 4; $q++) {
+            $months = range(($q - 1) * 3 + 1, $q * 3);
+            $income = round(array_sum(array_map(fn ($m) => $incomeByMonth[$m], $months)), 2);
+            $expenses = round(array_sum(array_map(fn ($m) => $expenseByMonth[$m], $months)), 2);
+            $profit = round($income - $expenses, 2);
+
+            $rows[] = ['quarter' => "Q{$q}", 'income' => $income, 'expenses' => $expenses, 'profit' => $profit];
+            $incomeByQuarter[] = $income;
+            $expenseByQuarter[] = $expenses;
+            $profitByQuarter[] = $profit;
+        }
+
+        return view('reports.quarterly_summary', [
+            'year' => $year,
+            'labels' => ['Q1', 'Q2', 'Q3', 'Q4'],
+            'rows' => $rows,
+            'incomeByQuarter' => $incomeByQuarter,
+            'expenseByQuarter' => $expenseByQuarter,
+            'profitByQuarter' => $profitByQuarter,
+            'totalIncome' => round(array_sum($incomeByQuarter), 2),
+            'totalExpenses' => round(array_sum($expenseByQuarter), 2),
+            'totalProfit' => round(array_sum($profitByQuarter), 2),
+        ]);
+    }
+
     public function ytdIncome(Request $request)
     {
         $year = (int) ($request->query('year') ?: now()->year);
@@ -568,6 +738,71 @@ class ReportsController extends Controller
             'labels' => $labels,
             'series' => $series,
             'grandTotal' => $grandTotal,
+        ]);
+    }
+
+    /**
+     * Employee Revenue Contribution by Year (admin-only via route middleware).
+     *
+     * Multi-year companion to employeeIncome(): sums employee_incomes.total_amount
+     * per employee across a span of years, so per-person trends are visible.
+     */
+    public function employeeRevenueByYear(Request $request)
+    {
+        $endYear = (int) ($request->query('year') ?: now()->year);
+        $span = (int) ($request->query('years') ?: 10);
+        $span = max(1, min(50, $span));
+        $startYear = $endYear - $span + 1;
+        $years = range($startYear, $endYear);
+
+        // Active employees plus their per-year totals within the span.
+        $records = DB::table('employees')
+            ->leftJoin('employee_incomes', function ($join) use ($startYear, $endYear) {
+                $join->on('employees.id', '=', 'employee_incomes.employee_id')
+                    ->whereBetween('employee_incomes.year', [$startYear, $endYear]);
+            })
+            ->where('employees.is_active', true)
+            ->groupBy('employees.id', 'employees.name', 'employee_incomes.year')
+            ->orderBy('employees.sort_order')
+            ->orderBy('employees.name')
+            ->selectRaw('employees.name as employee_name, employee_incomes.year as year, COALESCE(SUM(employee_incomes.total_amount), 0) as total')
+            ->get();
+
+        // Pivot into [employee][year] => total.
+        $byEmployee = [];
+        foreach ($records as $rec) {
+            $byEmployee[$rec->employee_name] ??= array_fill_keys($years, 0.0);
+            if (! is_null($rec->year) && isset($byEmployee[$rec->employee_name][(int) $rec->year])) {
+                $byEmployee[$rec->employee_name][(int) $rec->year] = round((float) $rec->total, 2);
+            }
+        }
+
+        $rows = [];
+        $totalsByYear = array_fill_keys($years, 0.0);
+        foreach ($byEmployee as $name => $byYear) {
+            $series = [];
+            $rowTotal = 0.0;
+            foreach ($years as $y) {
+                $val = $byYear[$y];
+                $series[] = $val;
+                $rowTotal = round($rowTotal + $val, 2);
+                $totalsByYear[$y] = round($totalsByYear[$y] + $val, 2);
+            }
+            $rows[] = ['employee' => $name, 'series' => $series, 'total' => $rowTotal];
+        }
+        usort($rows, fn ($a, $b) => $b['total'] <=> $a['total']);
+
+        $datasets = array_map(fn ($r) => ['label' => $r['employee'], 'data' => $r['series']], $rows);
+
+        return view('reports.employee_revenue_by_year', [
+            'endYear' => $endYear,
+            'span' => $span,
+            'years' => $years,
+            'labels' => array_map(fn ($y) => (string) $y, $years),
+            'rows' => $rows,
+            'datasets' => $datasets,
+            'totalsByYear' => array_values($totalsByYear),
+            'grandTotal' => round(array_sum($totalsByYear), 2),
         ]);
     }
 
