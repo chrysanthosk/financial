@@ -15,34 +15,109 @@ Alpine.start();
 window.loadChart = () =>
   (window.__chartPromise ??= import('chart.js/auto').then((m) => {
     window.__chart = m.default;
-    window.applyChartTheme?.(document.documentElement.getAttribute('data-bs-theme'));
+    window.__registerChartTheme?.(m.default);
     return m.default;
   }));
 
 /**
- * Chart.js draws to a canvas, so CSS cannot reach its labels or gridlines --
- * its defaults (#666 text, rgba(0,0,0,.1) grid) are invisible on a dark card.
- * Set them from the active theme, and re-apply to live charts on toggle.
+ * Chart theming.
+ *
+ * Chart.js draws to a canvas, so CSS cannot reach it. Two separate problems:
+ *
+ * 1. Text and gridlines. Its defaults (#666 text on rgba(0,0,0,.1) grid) are
+ *    invisible on a dark card.
+ * 2. Series colours. No chart view in this app sets backgroundColor or
+ *    borderColor, so every series fell back to Chart.js's translucent black --
+ *    barely visible in light mode and effectively invisible in dark. The
+ *    palette plugin below assigns colours by series index so each view stays
+ *    free of colour code.
+ *
+ * NB: do NOT set Chart.defaults.borderColor for the grid. Chart.js uses that
+ * one value for gridlines *and* for any dataset that has no borderColor of its
+ * own, so a faint grid colour there silently repaints the data itself.
  */
+const CHART_THEME = {
+  light: {
+    // Categorical slots, fixed order. Validated for CVD separation and
+    // contrast against the chart surface in this mode -- do not reorder or
+    // substitute without re-validating.
+    series: ['#2a78d6', '#008300', '#e87ba4', '#eda100', '#1baf7a', '#eb6834', '#4a3aa7', '#e34948'],
+    neutral: '#8a8a8a',
+    surface: '#ffffff',
+    grid: 'rgba(0,0,0,.1)',
+    text: '#666',
+  },
+  dark: {
+    // The same eight hues re-stepped for the dark surface, not a flip.
+    series: ['#3987e5', '#008300', '#d55181', '#c98500', '#199e70', '#d95926', '#9085e9', '#e66767'],
+    neutral: '#9a9a9a',
+    surface: '#343a40',
+    grid: 'rgba(255,255,255,.12)',
+    text: '#c2c7d0',
+  },
+};
+
+const chartTheme = (theme) => CHART_THEME[theme === 'dark' ? 'dark' : 'light'];
+
+// Datasets that arrived with their own colours are left alone.
+const authoredColors = new WeakMap();
+
+const palettePlugin = {
+  id: 'appPalette',
+
+  beforeInit(chart) {
+    authoredColors.set(
+      chart,
+      chart.data.datasets.map(
+        (ds) => ds.backgroundColor !== undefined || ds.borderColor !== undefined
+      )
+    );
+  },
+
+  beforeUpdate(chart) {
+    const t = chartTheme(document.documentElement.getAttribute('data-bs-theme'));
+    const authored = authoredColors.get(chart) ?? [];
+    const isArc = ['doughnut', 'pie', 'polarArea'].includes(chart.config.type);
+
+    chart.data.datasets.forEach((ds, i) => {
+      if (authored[i]) return;
+
+      if (isArc) {
+        // One colour per slice, plus a surface-coloured gap between segments
+        // so adjacent slices stay separable.
+        ds.backgroundColor = (chart.data.labels ?? []).map(
+          (_, j) => t.series[j] ?? t.neutral
+        );
+        ds.borderColor = t.surface;
+        ds.borderWidth = 2;
+        return;
+      }
+
+      const color = t.series[i] ?? t.neutral;
+      ds.borderColor = color;
+      ds.backgroundColor = color;
+      if (ds.borderWidth === undefined) ds.borderWidth = 2;
+    });
+  },
+};
+
 window.applyChartTheme = (theme) => {
   const Chart = window.__chart;
   if (!Chart) return;
 
-  const dark = theme === 'dark';
-  Chart.defaults.color = dark ? '#c2c7d0' : '#666';
-  Chart.defaults.borderColor = dark ? 'rgba(255,255,255,.12)' : 'rgba(0,0,0,.1)';
+  const t = chartTheme(theme);
+  Chart.defaults.color = t.text;
+  Chart.defaults.scale.grid.color = t.grid;
+  Chart.defaults.scale.ticks.color = t.text;
+  Chart.defaults.scale.border = { ...(Chart.defaults.scale.border ?? {}), color: t.grid };
 
-  // Existing instances captured the old defaults at construction time.
-  Object.values(Chart.instances ?? {}).forEach((chart) => {
-    Object.values(chart.options.scales ?? {}).forEach((scale) => {
-      if (scale.ticks) scale.ticks.color = Chart.defaults.color;
-      if (scale.grid) scale.grid.color = Chart.defaults.borderColor;
-    });
-    if (chart.options.plugins?.legend?.labels) {
-      chart.options.plugins.legend.labels.color = Chart.defaults.color;
-    }
-    chart.update('none');
-  });
+  // Live charts resolved the old values when they were built.
+  Object.values(Chart.instances ?? {}).forEach((chart) => chart.update('none'));
+};
+
+window.__registerChartTheme = (Chart) => {
+  Chart.register(palettePlugin);
+  window.applyChartTheme(document.documentElement.getAttribute('data-bs-theme'));
 };
 
 // AdminLTE
