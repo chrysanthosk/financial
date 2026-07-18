@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="{{ str_replace('_', '-', app()->getLocale()) }}" data-theme="light">
+<html lang="{{ str_replace('_', '-', app()->getLocale()) }}" data-theme="light" data-bs-theme="light">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -27,31 +27,9 @@
     </div>
 </div>
 
-<script>
-(function () {
-  const btn = document.getElementById('themeToggleBtn');
-  if (!btn) return;
-
-  function apply(theme) {
-    document.documentElement.dataset.theme = theme;
-    if (theme === 'dark') document.body.classList.add('dark-mode');
-    else document.body.classList.remove('dark-mode');
-  }
-
-  btn.addEventListener('click', function () {
-    const current = document.documentElement.dataset.theme || 'light';
-    const next = current === 'dark' ? 'light' : 'dark';
-    apply(next);
-    localStorage.setItem('theme', next);
-  });
-
-  // boot from localStorage
-  try {
-    const saved = localStorage.getItem('theme');
-    if (saved) apply(saved);
-  } catch (e) {}
-})();
-</script>
+{{-- Theme toggling is handled by themeInit() in resources/js/app.js, which is
+     loaded here too. A second inline handler on the same button used to bind
+     alongside it, so every click toggled twice and appeared to do nothing. --}}
 
 </body>
 </html>

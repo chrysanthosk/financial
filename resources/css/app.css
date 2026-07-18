@@ -42,7 +42,8 @@ body.dark-mode .dropdown-item:hover {
 
 /* Forms */
 body.dark-mode .form-control,
-body.dark-mode .custom-select,
+body.dark-mode .custom-select, /* Bootstrap 4 name, kept for safety */
+body.dark-mode .form-select,   /* Bootstrap 5 name — what this project ships */
 body.dark-mode .input-group-text {
   background-color: #2b2f33 !important;
   color: #f8f9fa !important;
@@ -52,7 +53,8 @@ body.dark-mode .input-group-text {
 body.dark-mode .form-control::placeholder { color: #adb5bd !important; }
 
 body.dark-mode .form-control:focus,
-body.dark-mode .custom-select:focus {
+body.dark-mode .custom-select:focus,
+body.dark-mode .form-select:focus {
   background-color: #2b2f33 !important;
   color: #f8f9fa !important;
   border-color: #6c757d !important;
@@ -60,14 +62,21 @@ body.dark-mode .custom-select:focus {
 }
 
 /* Make select dropdown options readable in dark mode */
-body.dark-mode select.form-control {
+body.dark-mode select.form-control,
+body.dark-mode select.form-select {
   background-color: #343a40 !important;
   color: #f8f9fa !important;
   border-color: rgba(255,255,255,.15) !important;
 }
-body.dark-mode select.form-control option {
+body.dark-mode select.form-control option,
+body.dark-mode select.form-select option {
   background-color: #343a40 !important;
   color: #f8f9fa !important;
+}
+
+/* The chevron is a dark inline SVG baked into the background image */
+body.dark-mode .form-select {
+  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%23f8f9fa' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='m2 5 6 6 6-6'/%3e%3c/svg%3e") !important;
 }
 
 /* Bootstrap text-muted is too dark on dark backgrounds */
