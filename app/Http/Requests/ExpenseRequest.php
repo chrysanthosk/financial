@@ -27,7 +27,9 @@ class ExpenseRequest extends FormRequest
         $validMethodIds = PaymentMethod::where('is_active', true)->pluck('id')->all();
 
         return [
-            'expense_date' => ['required', 'date'],
+            // Bound the year so a mistyped date (e.g. "0205-02-10") cannot skew
+            // every all-time report. Matches EmployeeIncomeRequest's year range.
+            'expense_date' => ['required', 'date', 'after_or_equal:2000-01-01', 'before_or_equal:2100-12-31'],
             'payee_name' => ['required', 'string', 'max:120'],
             'expense_category_id' => ['required', Rule::in($validCategoryIds)],
             'payment_method_id' => ['required', Rule::in($validMethodIds)],

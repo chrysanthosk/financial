@@ -36,9 +36,12 @@ class ExpenseController extends Controller
             $direction = 'desc';
         }
 
-        // Use [startOfMonth, startOfNextMonth) to avoid end-of-month/time issues
-        $start = Carbon::createFromFormat('Y-m', $month)->startOfMonth();
-        $end = (clone $start)->addMonth(); // exclusive
+        // Use [startOfMonth, startOfNextMonth) to avoid end-of-month/time issues.
+        // Compare as Y-m-d strings, not Carbon objects: expense_date holds a
+        // date only, and "2025-01-01" >= "2025-01-01 00:00:00" is false as a
+        // string comparison, which would drop the first day of the month.
+        $start = Carbon::createFromFormat('Y-m', $month)->startOfMonth()->toDateString();
+        $end = Carbon::createFromFormat('Y-m', $month)->startOfMonth()->addMonth()->toDateString(); // exclusive
 
         $categories = ExpenseCategory::where('is_active', true)
             ->orderBy('sort_order')->orderBy('name')->get();
@@ -67,10 +70,12 @@ class ExpenseController extends Controller
             }
         }
 
-        $expenses = $query->paginate(20)->withQueryString();
-
-        // Sum should match the current filtered query (but without pagination)
+        // Sum before paginating: paginate() applies limit/offset to this very
+        // builder, and a clone taken afterwards inherits them, so the aggregate
+        // row gets skipped and the sum comes back 0 from page 2 onwards.
         $monthTotal = (clone $query)->sum('amount');
+
+        $expenses = $query->paginate(20)->withQueryString();
 
         // breakdown per payment method (ignores method filter so you can always see it)
         $totalsPerMethod = Expense::query()

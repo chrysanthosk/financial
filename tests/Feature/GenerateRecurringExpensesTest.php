@@ -39,7 +39,7 @@ class GenerateRecurringExpensesTest extends TestCase
         $this->assertDatabaseCount('expenses', 1);
         $this->assertDatabaseHas('expenses', [
             'payee_name' => $tpl->payee_name,
-            'expense_date' => '2026-06-10 00:00:00',
+            'expense_date' => '2026-06-10',
             'created_by' => $tpl->created_by,
         ]);
         $this->assertSame('2026-06-10', $tpl->fresh()->last_generated_on->toDateString());
@@ -96,7 +96,7 @@ class GenerateRecurringExpensesTest extends TestCase
         $this->assertDatabaseCount('expenses', 4);
         foreach (['2026-03-10', '2026-04-10', '2026-05-10', '2026-06-10'] as $date) {
             $this->assertDatabaseHas('expenses', [
-                'expense_date' => $date.' 00:00:00',
+                'expense_date' => $date,
                 'payee_name' => $tpl->payee_name,
             ]);
         }

@@ -17,7 +17,9 @@ class IncomeRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'income_date' => ['required', 'date'],
+            // Bound the year so a mistyped date (e.g. "0205-02-10") cannot skew
+            // every all-time report. Matches EmployeeIncomeRequest's year range.
+            'income_date' => ['required', 'date', 'after_or_equal:2000-01-01', 'before_or_equal:2100-12-31'],
             // One amount per active source, keyed by source id.
             'amounts' => ['required', 'array'],
             // Column is decimal(12,2); cap below its max to avoid overflow.
