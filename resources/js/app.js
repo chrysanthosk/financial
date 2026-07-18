@@ -12,7 +12,38 @@ Alpine.start();
 
 // Chart.js is loaded on demand (only on pages that render charts) so it stays
 // out of the main bundle. Usage: const Chart = await window.loadChart();
-window.loadChart = () => (window.__chartPromise ??= import('chart.js/auto').then((m) => m.default));
+window.loadChart = () =>
+  (window.__chartPromise ??= import('chart.js/auto').then((m) => {
+    window.__chart = m.default;
+    window.applyChartTheme?.(document.documentElement.getAttribute('data-bs-theme'));
+    return m.default;
+  }));
+
+/**
+ * Chart.js draws to a canvas, so CSS cannot reach its labels or gridlines --
+ * its defaults (#666 text, rgba(0,0,0,.1) grid) are invisible on a dark card.
+ * Set them from the active theme, and re-apply to live charts on toggle.
+ */
+window.applyChartTheme = (theme) => {
+  const Chart = window.__chart;
+  if (!Chart) return;
+
+  const dark = theme === 'dark';
+  Chart.defaults.color = dark ? '#c2c7d0' : '#666';
+  Chart.defaults.borderColor = dark ? 'rgba(255,255,255,.12)' : 'rgba(0,0,0,.1)';
+
+  // Existing instances captured the old defaults at construction time.
+  Object.values(Chart.instances ?? {}).forEach((chart) => {
+    Object.values(chart.options.scales ?? {}).forEach((scale) => {
+      if (scale.ticks) scale.ticks.color = Chart.defaults.color;
+      if (scale.grid) scale.grid.color = Chart.defaults.borderColor;
+    });
+    if (chart.options.plugins?.legend?.labels) {
+      chart.options.plugins.legend.labels.color = Chart.defaults.color;
+    }
+    chart.update('none');
+  });
+};
 
 // AdminLTE
 import 'admin-lte/dist/js/adminlte.js';
@@ -72,6 +103,12 @@ document.addEventListener('submit', (e) => {
   function applyTheme(theme) {
     const navbar = document.querySelector('.main-header.navbar');
 
+    // Bootstrap 5.3 / AdminLTE 4 theme every built-in component off this
+    // attribute. Without it only the hand-written rules in app.css are dark
+    // and everything else (pagination, form-select, progress, ...) stays white.
+    document.documentElement.setAttribute('data-bs-theme', theme);
+    document.documentElement.setAttribute('data-theme', theme);
+
     if (theme === 'dark') {
       document.body.classList.add('dark-mode');
 
@@ -89,10 +126,17 @@ document.addEventListener('submit', (e) => {
     }
 
     setIcon(theme);
+    window.applyChartTheme?.(theme);
   }
 
   function getSavedTheme() {
-    return localStorage.getItem(THEME_KEY) || 'light';
+    // Fall back to what the server rendered, not to 'light' — otherwise a
+    // browser with no localStorage entry flips a dark-themed user to light.
+    return (
+      localStorage.getItem(THEME_KEY) ||
+      document.documentElement.getAttribute('data-bs-theme') ||
+      'light'
+    );
   }
 
   function saveTheme(theme) {

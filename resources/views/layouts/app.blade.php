@@ -1,5 +1,12 @@
+@php
+  // Render the saved theme server-side so the page does not paint light first
+  // and then flip. data-bs-theme is what Bootstrap 5.3 / AdminLTE 4 read;
+  // body.dark-mode is this app's own hook used throughout app.css.
+  $theme = auth()->user()->theme ?? 'light';
+  $theme = in_array($theme, ['light', 'dark'], true) ? $theme : 'light';
+@endphp
 <!DOCTYPE html>
-<html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
+<html lang="{{ str_replace('_', '-', app()->getLocale()) }}" data-bs-theme="{{ $theme }}" data-theme="{{ $theme }}">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -25,7 +32,7 @@
   $employeeIncomeReportActive = request()->routeIs('reports.employee_income') || request()->routeIs('reports.employee_income*');
 @endphp
 
-<body class="hold-transition layout-top-nav">
+<body class="hold-transition layout-top-nav @if($theme === 'dark') dark-mode @endif">
 <div class="wrapper">
 
     <!-- Navbar -->
