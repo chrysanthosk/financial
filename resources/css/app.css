@@ -246,3 +246,52 @@ body.dark-mode .recovery-codes-box .text-muted{
 
 .qr-wrap{ background: #fff; }
 body.dark-mode .qr-wrap{ background: #fff; border-color: rgba(255,255,255,.15) !important; }
+
+/* =========================================================
+   Alerts (Bootstrap keeps light backgrounds in dark mode)
+   ========================================================= */
+
+body.dark-mode .alert-secondary,
+body.dark-mode .alert-light,
+body.dark-mode .alert-dark {
+  background: #2b2f33 !important;
+  color: #f8f9fa !important;
+  border-color: #495057 !important;
+}
+
+body.dark-mode .alert-info {
+  background: rgba(23,162,184,.15) !important;
+  color: #9eeaf9 !important;
+  border-color: rgba(23,162,184,.40) !important;
+}
+
+body.dark-mode .alert-warning {
+  background: rgba(255,193,7,.15) !important;
+  color: #ffe083 !important;
+  border-color: rgba(255,193,7,.40) !important;
+}
+
+body.dark-mode .alert-danger {
+  background: rgba(220,53,69,.18) !important;
+  color: #f5a3ab !important;
+  border-color: rgba(220,53,69,.40) !important;
+}
+
+body.dark-mode .alert-success {
+  background: rgba(40,167,69,.15) !important;
+  color: #a3e0b5 !important;
+  border-color: rgba(40,167,69,.40) !important;
+}
+
+/* Keep emphasis and links legible against the tinted backgrounds */
+body.dark-mode .alert strong,
+body.dark-mode .alert .fw-bold { color: inherit !important; }
+
+body.dark-mode .alert a,
+body.dark-mode .alert .alert-link {
+  color: inherit !important;
+  text-decoration: underline;
+}
+
+/* Bootstrap form help text renders near-black on dark backgrounds */
+body.dark-mode .form-text { color: #f8f9fa !important; }
