@@ -36,7 +36,10 @@
 <div class="wrapper">
 
     <!-- Navbar -->
-    <nav class="main-header navbar navbar-expand-xl navbar-white navbar-light">
+    {{-- expand-xxl, not -xl: the ten top-level items need ~1570px, so between
+         1200px and that width the bar was expanded but did not fit and pushed
+         the whole page into a horizontal scroll. --}}
+    <nav class="main-header navbar navbar-expand-xxl navbar-white navbar-light">
         <div class="container">
 
             <!-- Brand -->
