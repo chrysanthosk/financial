@@ -23,7 +23,9 @@ class Expense extends Model
     ];
 
     protected $casts = [
-        'expense_date' => 'date',
+        // Must carry the format: a bare 'date' cast writes "Y-m-d H:i:s" on
+        // SQLite, which then fails every inclusive "<= Y-m-d" range check.
+        'expense_date' => 'date:Y-m-d',
         'amount' => 'decimal:2',
         'is_paid' => 'boolean', // ✅ NEW
     ];

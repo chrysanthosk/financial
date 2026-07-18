@@ -33,7 +33,8 @@ class ExpenseTemplate extends Model
         'auto_create' => 'boolean',
         'is_active' => 'boolean',
         'day_of_month' => 'integer',
-        'last_generated_on' => 'date',
+        // Same format pin as Expense::$casts — see the note there.
+        'last_generated_on' => 'date:Y-m-d',
     ];
 
     public function category(): BelongsTo
