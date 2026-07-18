@@ -257,6 +257,21 @@ body.dark-mode .recovery-codes-box .text-muted{
 body.dark-mode .qr-wrap{ background: #fff; border-color: rgba(255,255,255,.15) !important; }
 
 /* =========================================================
+   Wide screens
+   Bootstrap caps .container at 1320px, so on a 2560px monitor the app used
+   only half the width. Grow with the viewport past that, keeping a margin so
+   text lines never run edge to edge.
+   ========================================================= */
+
+@media (min-width: 1400px) {
+  .main-header .container,
+  .content-wrapper .container,
+  .main-footer .container {
+    max-width: min(1760px, 94vw);
+  }
+}
+
+/* =========================================================
    Alerts (Bootstrap keeps light backgrounds in dark mode)
    ========================================================= */
 
