@@ -51,8 +51,8 @@
         <div class="col-md-3 mb-2">
             <div class="card shadow">
                 <div class="card-body">
-                    <div class="text-muted">Skipped (empty/zero)</div>
-                    <div class="h4 mb-0 text-warning">{{ $summary['skipped_zero'] ?? 0 }}</div>
+                    <div class="text-muted">Skipped (blank)</div>
+                    <div class="h4 mb-0 text-warning">{{ $summary['skipped_blank'] ?? 0 }}</div>
                 </div>
             </div>
         </div>
@@ -67,9 +67,9 @@
     @if(($type ?? '') === 'income')
         <div class="alert alert-info">
             <strong>Note:</strong>
-            For Income imports, <em>empty/zero amounts are normal</em> (e.g. Revolut=0 on a day) and are shown as
-            <span class="badge bg-warning text-dark">SKIPPED</span>.
-            Only rows with real errors are <span class="badge bg-danger">INVALID</span>.
+            For Income imports, a <em>zero amount is imported as a real 0.00 entry</em> (e.g. Revolut=0 on a day).
+            Only <em>blank</em> cells are shown as <span class="badge bg-warning text-dark">SKIPPED</span>.
+            Rows with real errors are <span class="badge bg-danger">INVALID</span>.
         </div>
     @else
         <div class="alert alert-info">
@@ -132,7 +132,7 @@
                         <td>
                             @if($isSkipped)
                                 <span class="badge bg-warning text-dark">SKIPPED</span>
-                                <div class="text-muted small mt-1">Empty/zero amount</div>
+                                <div class="text-muted small mt-1">Blank amount</div>
                             @elseif(empty($errors))
                                 <span class="badge bg-success">OK</span>
                             @else

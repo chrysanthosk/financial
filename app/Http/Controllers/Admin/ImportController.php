@@ -527,7 +527,7 @@ class ImportController extends Controller
             'candidates' => 0,
             'valid' => 0,
             'invalid' => 0,
-            'skipped_zero' => 0,
+            'skipped_blank' => 0,
         ];
 
         $incomeSourcesByName = IncomeSource::query()
@@ -545,8 +545,9 @@ class ImportController extends Controller
 
                 $amount = $this->normalizeAmount($row[$col] ?? null);
 
-                if ($amount === null || $amount <= 0) {
-                    $summary['skipped_zero']++;
+                // A blank cell means "no entry"; an explicit 0 is a real 0.00 entry.
+                if ($amount === null) {
+                    $summary['skipped_blank']++;
 
                     continue;
                 }
@@ -556,6 +557,10 @@ class ImportController extends Controller
                 $errors = [];
                 if (! $date) {
                     $errors[] = 'Invalid date';
+                }
+
+                if ($amount < 0) {
+                    $errors[] = 'Negative amount';
                 }
 
                 $sourceName = $headers[$col] ?? $col;
