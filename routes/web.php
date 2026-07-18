@@ -117,7 +117,12 @@ Route::middleware('auth')->group(function () {
     | Income
     |--------------------------------------------------------------------------
     */
-    Route::resource('income', IncomeController::class)->except(['show']);
+    // Income is entered one date at a time (all sources in a single grid),
+    // so there are no per-record edit/update/destroy routes.
+    Route::get('income', [IncomeController::class, 'index'])->name('income.index');
+    Route::get('income/create', [IncomeController::class, 'create'])->name('income.create');
+    Route::post('income', [IncomeController::class, 'store'])->name('income.store');
+    Route::delete('income/day/{date}', [IncomeController::class, 'destroyDay'])->name('income.day.destroy');
 
     /*
     |--------------------------------------------------------------------------

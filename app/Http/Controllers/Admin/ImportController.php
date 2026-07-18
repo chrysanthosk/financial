@@ -231,13 +231,20 @@ class ImportController extends Controller
                             continue;
                         }
 
-                        Income::create([
+                        // Income is unique per (date, source), so re-importing a month
+                        // overwrites the existing rows instead of hitting the unique index.
+                        $income = Income::firstOrNew([
                             'income_date' => $r['data']['income_date'],
-                            'amount' => $r['data']['amount'],
                             'income_source_id' => $sid,
-                            'note' => $r['data']['note'] ?? null,
-                            'created_by' => $userId,
                         ]);
+
+                        if (! $income->exists) {
+                            $income->created_by = $userId;
+                        }
+
+                        $income->amount = $r['data']['amount'];
+                        $income->note = $r['data']['note'] ?? null;
+                        $income->save();
                     } else {
                         $catId = (int) ($r['data']['expense_category_id'] ?? 0);
                         if (! $catId || ! in_array($catId, $validExpenseCatIds, true)) {
