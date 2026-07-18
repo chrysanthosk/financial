@@ -9,6 +9,7 @@ use App\Support\Audit;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 
 class IncomeController extends Controller
 {
@@ -99,137 +100,149 @@ class IncomeController extends Controller
             'rowTotals' => $rowTotals,
             'colTotals' => $colTotals,
             'monthTotal' => $monthTotal,
+            // A day of all-zero entries is still data, so drive the empty state
+            // off row existence rather than off the month total.
+            'hasAny' => $rows->isNotEmpty(),
             'sourceId' => null,
         ]);
     }
 
-    public function create()
+    /**
+     * Grid form for a single date: one amount field per active source.
+     * Doubles as the edit screen — existing amounts for the date are pre-filled.
+     */
+    public function create(Request $request)
     {
+        $date = $request->string('date')->toString();
+
+        if (! preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) {
+            $date = now()->toDateString();
+        }
+
         $sources = IncomeSource::where('is_active', true)
             ->orderBy('sort_order')
             ->orderBy('name')
             ->get();
+
+        $existing = Income::query()
+            ->whereDate('income_date', $date)
+            ->get();
+
+        // ["source_id" => amount] for the fields, plus the day's shared note.
+        $amounts = [];
+        foreach ($existing as $row) {
+            $amounts[(int) $row->income_source_id] = number_format((float) $row->amount, 2, '.', '');
+        }
+
+        $noteRow = $existing->first(fn ($r) => ! empty($r->note));
+        $note = $noteRow ? (string) $noteRow->note : '';
 
         return view('income.create', [
             'sources' => $sources,
-            'defaultDate' => now()->toDateString(),
+            'date' => $date,
+            'amounts' => $amounts,
+            'note' => $note,
+            'isEdit' => $existing->isNotEmpty(),
         ]);
     }
 
+    /**
+     * Upsert every source for the given date in one shot.
+     * Zero is a real value here, so a 0.00 field stores a 0.00 row.
+     */
     public function store(IncomeRequest $request)
     {
         $validated = $request->validated();
-        $validated['created_by'] = Auth::id();
 
-        $income = Income::create($validated);
+        $date = Carbon::parse($validated['income_date'])->toDateString();
+        $note = $validated['note'] ?? null;
+
+        $created = 0;
+        $updated = 0;
+        $meta = [];
+
+        DB::transaction(function () use ($validated, $date, $note, &$created, &$updated, &$meta) {
+            foreach ($validated['amounts'] as $sourceId => $amount) {
+                $income = Income::firstOrNew([
+                    'income_date' => $date,
+                    'income_source_id' => (int) $sourceId,
+                ]);
+
+                $income->exists ? $updated++ : $created++;
+
+                if (! $income->exists) {
+                    $income->created_by = Auth::id();
+                }
+
+                $income->amount = (float) $amount;
+                $income->note = $note;
+                $income->save();
+
+                $meta[(int) $sourceId] = number_format((float) $amount, 2, '.', '');
+            }
+        });
 
         Audit::log(
-            action: 'income.created',
+            action: 'income.day_saved',
             category: 'income',
             request: $request,
             userId: $request->user()?->id,
-            targetType: 'Income',
-            targetId: (string) $income->id,
+            targetType: 'IncomeDay',
+            targetId: $date,
             meta: [
-                'income_date' => (string) $income->income_date,
-                'income_source_id' => (int) $income->income_source_id,
-                'amount' => number_format((float) $income->amount, 2, '.', ''),
-                'note_present' => ! empty($income->note),
+                'income_date' => $date,
+                'created' => $created,
+                'updated' => $updated,
+                'amounts' => $meta,
+                'note_present' => ! empty($note),
             ]
         );
 
-        return redirect()->route('income.index')->with('status', 'Income added successfully.');
+        return redirect()
+            ->route('income.index', ['month' => Carbon::parse($date)->format('Y-m')])
+            ->with('status', 'Income for '.$date.' saved successfully.');
     }
 
-    public function edit(Income $income)
+    /**
+     * Remove every income row for a given date (the row-level delete on the listing).
+     */
+    public function destroyDay(Request $request, string $date)
     {
-        $sources = IncomeSource::where('is_active', true)
-            ->orderBy('sort_order')
-            ->orderBy('name')
-            ->get();
+        if (! preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) {
+            abort(404);
+        }
 
-        return view('income.edit', [
-            'income' => $income->load('source'),
-            'sources' => $sources,
-        ]);
-    }
+        $rows = Income::whereDate('income_date', $date)->get();
 
-    public function update(IncomeRequest $request, Income $income)
-    {
-        $validated = $request->validated();
+        if ($rows->isEmpty()) {
+            return redirect()
+                ->route('income.index', ['month' => Carbon::parse($date)->format('Y-m')])
+                ->with('status', 'No income entries found for '.$date.'.');
+        }
 
-        $before = [
-            'income_date' => (string) $income->income_date,
-            'income_source_id' => (int) $income->income_source_id,
-            'amount' => number_format((float) $income->amount, 2, '.', ''),
-            'note' => (string) ($income->note ?? ''),
-        ];
+        $meta = [];
+        foreach ($rows as $row) {
+            $meta[(int) $row->income_source_id] = number_format((float) $row->amount, 2, '.', '');
+        }
 
-        $income->update($validated);
-
-        $after = [
-            'income_date' => (string) $income->income_date,
-            'income_source_id' => (int) $income->income_source_id,
-            'amount' => number_format((float) $income->amount, 2, '.', ''),
-            'note' => (string) ($income->note ?? ''),
-        ];
+        DB::transaction(fn () => Income::whereDate('income_date', $date)->delete());
 
         Audit::log(
-            action: 'income.updated',
+            action: 'income.day_deleted',
             category: 'income',
             request: $request,
             userId: $request->user()?->id,
-            targetType: 'Income',
-            targetId: (string) $income->id,
+            targetType: 'IncomeDay',
+            targetId: $date,
             meta: [
-                'changed' => [
-                    'income_date' => $before['income_date'] !== $after['income_date'],
-                    'income_source_id' => $before['income_source_id'] !== $after['income_source_id'],
-                    'amount' => $before['amount'] !== $after['amount'],
-                    'note' => $before['note'] !== $after['note'],
-                ],
-                'before' => [
-                    'income_date' => $before['income_date'],
-                    'income_source_id' => $before['income_source_id'],
-                    'amount' => $before['amount'],
-                    // keep note minimal (don’t store full free-text unless you want to)
-                    'note_present' => $before['note'] !== '',
-                ],
-                'after' => [
-                    'income_date' => $after['income_date'],
-                    'income_source_id' => $after['income_source_id'],
-                    'amount' => $after['amount'],
-                    'note_present' => $after['note'] !== '',
-                ],
+                'income_date' => $date,
+                'deleted' => $rows->count(),
+                'amounts' => $meta,
             ]
         );
 
-        return redirect()->route('income.index')->with('status', 'Income updated successfully.');
-    }
-
-    public function destroy(Request $request, Income $income)
-    {
-        $meta = [
-            'income_date' => (string) $income->income_date,
-            'income_source_id' => (int) $income->income_source_id,
-            'amount' => number_format((float) $income->amount, 2, '.', ''),
-            'note_present' => ! empty($income->note),
-        ];
-
-        $id = (string) $income->id;
-
-        $income->delete();
-
-        Audit::log(
-            action: 'income.deleted',
-            category: 'income',
-            request: $request,
-            userId: $request->user()?->id,
-            targetType: 'Income',
-            targetId: $id,
-            meta: $meta
-        );
-
-        return redirect()->route('income.index')->with('status', 'Income deleted successfully.');
+        return redirect()
+            ->route('income.index', ['month' => Carbon::parse($date)->format('Y-m')])
+            ->with('status', 'Income for '.$date.' deleted successfully.');
     }
 }

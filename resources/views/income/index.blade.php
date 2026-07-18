@@ -54,16 +54,18 @@
               @endforeach
 
               <th class="text-end" style="width:140px;">Total</th>
+              <th class="text-end" style="width:110px;">Actions</th>
             </tr>
           </thead>
 
           <tbody>
-            @if((float)$monthTotal <= 0)
+            @if(! $hasAny)
               <tr>
-                <td colspan="{{ count($sources) + 2 }}" class="text-center py-4 text-muted">No income found for this month.</td>
+                <td colspan="{{ count($sources) + 3 }}" class="text-center py-4 text-muted">No income found for this month.</td>
               </tr>
             @else
             @foreach($days as $d)
+              @php $hasRow = isset($cellId[$d]); @endphp
               <tr>
                 <td class="text-nowrap">{{ $d }}</td>
 
@@ -76,29 +78,10 @@
                   @endphp
 
                   <td class="text-end">
-                    @if($amt > 0)
-                      <div class="d-inline-flex align-items-center justify-content-end gap-2">
-                        <span title="{{ $note !== '' ? e($note) : '' }}">
-                          {{ number_format($amt, 2) }}
-                        </span>
-
-                        {{-- Edit --}}
-                        @if($id)
-                          <a href="{{ route('income.edit', $id) }}" class="btn btn-xs btn-outline-primary" title="Edit">
-                            <i class="fas fa-edit"></i>
-                          </a>
-
-                          {{-- Delete --}}
-                          <form action="{{ route('income.destroy', $id) }}" method="POST" class="d-inline"
-                                onsubmit="return confirm('Delete this income entry? This cannot be undone.');">
-                            @csrf
-                            @method('DELETE')
-                            <button class="btn btn-xs btn-outline-danger" type="submit" title="Delete">
-                              <i class="fas fa-trash"></i>
-                            </button>
-                          </form>
-                        @endif
-                      </div>
+                    @if($id)
+                      <span title="{{ $note !== '' ? e($note) : '' }}">
+                        {{ number_format($amt, 2) }}
+                      </span>
                     @else
                       <span class="text-muted">—</span>
                     @endif
@@ -107,6 +90,25 @@
 
                 <td class="text-end fw-bold">
                   {{ number_format((float)($rowTotals[$d] ?? 0), 2) }}
+                </td>
+
+                {{-- One set of actions per date, not per source --}}
+                <td class="text-end text-nowrap">
+                  <a href="{{ route('income.create', ['date' => $d]) }}"
+                     class="btn btn-xs btn-outline-primary" title="{{ $hasRow ? 'Edit this date' : 'Add income for this date' }}">
+                    <i class="fas {{ $hasRow ? 'fa-edit' : 'fa-plus' }}"></i>
+                  </a>
+
+                  @if($hasRow)
+                    <form action="{{ route('income.day.destroy', ['date' => $d]) }}" method="POST" class="d-inline"
+                          onsubmit="return confirm('Delete all income entries for {{ $d }}? This cannot be undone.');">
+                      @csrf
+                      @method('DELETE')
+                      <button class="btn btn-xs btn-outline-danger" type="submit" title="Delete this date">
+                        <i class="fas fa-trash"></i>
+                      </button>
+                    </form>
+                  @endif
                 </td>
               </tr>
             @endforeach
@@ -127,6 +129,8 @@
               <th class="text-end">
                 {{ number_format((float)$monthTotal, 2) }}
               </th>
+
+              <th></th>
             </tr>
           </tfoot>
         </table>

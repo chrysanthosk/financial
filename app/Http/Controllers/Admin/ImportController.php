@@ -231,13 +231,20 @@ class ImportController extends Controller
                             continue;
                         }
 
-                        Income::create([
+                        // Income is unique per (date, source), so re-importing a month
+                        // overwrites the existing rows instead of hitting the unique index.
+                        $income = Income::firstOrNew([
                             'income_date' => $r['data']['income_date'],
-                            'amount' => $r['data']['amount'],
                             'income_source_id' => $sid,
-                            'note' => $r['data']['note'] ?? null,
-                            'created_by' => $userId,
                         ]);
+
+                        if (! $income->exists) {
+                            $income->created_by = $userId;
+                        }
+
+                        $income->amount = $r['data']['amount'];
+                        $income->note = $r['data']['note'] ?? null;
+                        $income->save();
                     } else {
                         $catId = (int) ($r['data']['expense_category_id'] ?? 0);
                         if (! $catId || ! in_array($catId, $validExpenseCatIds, true)) {
@@ -520,7 +527,7 @@ class ImportController extends Controller
             'candidates' => 0,
             'valid' => 0,
             'invalid' => 0,
-            'skipped_zero' => 0,
+            'skipped_blank' => 0,
         ];
 
         $incomeSourcesByName = IncomeSource::query()
@@ -538,8 +545,9 @@ class ImportController extends Controller
 
                 $amount = $this->normalizeAmount($row[$col] ?? null);
 
-                if ($amount === null || $amount <= 0) {
-                    $summary['skipped_zero']++;
+                // A blank cell means "no entry"; an explicit 0 is a real 0.00 entry.
+                if ($amount === null) {
+                    $summary['skipped_blank']++;
 
                     continue;
                 }
@@ -549,6 +557,10 @@ class ImportController extends Controller
                 $errors = [];
                 if (! $date) {
                     $errors[] = 'Invalid date';
+                }
+
+                if ($amount < 0) {
+                    $errors[] = 'Negative amount';
                 }
 
                 $sourceName = $headers[$col] ?? $col;

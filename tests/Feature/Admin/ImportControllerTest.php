@@ -111,7 +111,8 @@ class ImportControllerTest extends TestCase
 
         $csv = "Date,Cash,Visa\n"
             ."2026-05-01,100,200\n"
-            ."2026-05-02,0,50\n";
+            ."2026-05-02,0,50\n"
+            ."2026-05-03,,75\n";
 
         $this->actingAs($admin)->post(
             route('tools.import.handle_upload', ['type' => 'income']),
@@ -126,8 +127,54 @@ class ImportControllerTest extends TestCase
         $this->actingAs($admin)->post(route('tools.import.commit', ['type' => 'income']))
             ->assertRedirect(route('tools.import.index'));
 
-        // 100 + 200 + 50 = 3 non-zero cells -> 3 income rows.
-        $this->assertDatabaseCount('incomes', 3);
+        // An explicit 0 is a real entry; only the blank cell is skipped.
+        // 100 + 200 + 0 + 50 + 75 = 5 rows, and no row for 2026-05-03 Cash.
+        $this->assertDatabaseCount('incomes', 5);
+
+        $this->assertDatabaseHas('incomes', [
+            'income_date' => '2026-05-02',
+            'amount' => '0.00',
+        ]);
+
+        $this->assertDatabaseMissing('incomes', [
+            'income_date' => '2026-05-03',
+            'income_source_id' => IncomeSource::where('name', 'Cash')->value('id'),
+        ]);
+    }
+
+    public function test_income_reimport_of_same_month_updates_instead_of_failing(): void
+    {
+        Storage::fake('local');
+
+        IncomeSource::factory()->create(['name' => 'Cash']);
+        IncomeSource::factory()->create(['name' => 'Visa']);
+        $admin = $this->admin();
+
+        $import = function (string $csv) use ($admin) {
+            $this->actingAs($admin)->post(
+                route('tools.import.handle_upload', ['type' => 'income']),
+                ['file' => $this->csvUpload($csv), 'has_header' => '1']
+            )->assertOk();
+
+            $this->actingAs($admin)->post(
+                route('tools.import.preview', ['type' => 'income']),
+                ['date_col' => 'A', 'source_cols' => ['B', 'C'], 'year' => 2026]
+            )->assertOk();
+
+            $this->actingAs($admin)->post(route('tools.import.commit', ['type' => 'income']))
+                ->assertRedirect(route('tools.import.index'));
+        };
+
+        $import("Date,Cash,Visa\n2026-05-01,100,200\n");
+        $import("Date,Cash,Visa\n2026-05-01,150,200\n");
+
+        // Same (date, source) pairs: updated in place, not duplicated.
+        $this->assertDatabaseCount('incomes', 2);
+        $this->assertDatabaseHas('incomes', [
+            'income_date' => '2026-05-01',
+            'income_source_id' => IncomeSource::where('name', 'Cash')->value('id'),
+            'amount' => '150.00',
+        ]);
     }
 
     public function test_upload_rejects_oversized_file(): void
