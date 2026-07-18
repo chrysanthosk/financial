@@ -210,12 +210,15 @@ body.dark-mode .badge-soon { background: rgba(255,255,255,.15); color: #fff; }
   white-space: nowrap;
 }
 
-/* Slightly tighten spacing so it fits better */
-@media (min-width: 1200px) and (max-width: 1399.98px) {
+/* Tighten spacing across the whole band where the bar is expanded but the ten
+   items would otherwise need more room than the container gives (measured:
+   ~1570px at full size). Without this a 1440px laptop pushed the nav onto a
+   second row. */
+@media (min-width: 1200px) and (max-width: 1699.98px) {
   .main-header .navbar-nav .nav-link {
-    padding-left: .65rem;
-    padding-right: .65rem;
-    font-size: .95rem;
+    padding-left: .5rem;
+    padding-right: .5rem;
+    font-size: .9rem;
   }
 }
 
@@ -257,18 +260,25 @@ body.dark-mode .recovery-codes-box .text-muted{
 body.dark-mode .qr-wrap{ background: #fff; border-color: rgba(255,255,255,.15) !important; }
 
 /* =========================================================
-   Wide screens
-   Bootstrap caps .container at 1320px, so on a 2560px monitor the app used
-   only half the width. Grow with the viewport past that, keeping a margin so
-   text lines never run edge to edge.
+   Page width
+   Bootstrap's .container steps through fixed max-widths (…1140px, 1320px) and
+   then stops, so the layout ignored anything above 1320px -- half a 2560px
+   monitor -- and jumped in steps in between. Track the viewport continuously
+   instead, keeping a margin so text lines never run edge to edge, and cap it
+   so they do not get uncomfortably long on very wide screens.
    ========================================================= */
 
-@media (min-width: 1400px) {
-  .main-header .container,
-  .content-wrapper .container,
-  .main-footer .container {
-    max-width: min(1760px, 94vw);
-  }
+.main-header .container,
+.content-wrapper .container,
+.main-footer .container {
+  width: 100%;
+  max-width: min(1760px, 94vw);
+}
+
+/* Last resort against a horizontal scrollbar: let the top nav use a second
+   row rather than forcing the whole page wider than the viewport. */
+.main-header .navbar-nav {
+  flex-wrap: wrap;
 }
 
 /* =========================================================
